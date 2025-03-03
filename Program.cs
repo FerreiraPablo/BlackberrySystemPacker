@@ -299,20 +299,6 @@ internal class Program
 
         var systemFiles = allFiles.Where(x => !x.IsUserNode).ToList();
 
-        var apks = systemFiles.FirstOrDefault(x => x.FullPath == "usr/apk");
-        if (apks != null)
-        {
-            var apkFiles = apks.Children;
-            foreach (var apk in apkFiles)
-            {
-                var metaFile = systemFiles.FirstOrDefault(x => x.FullPath == apk.FullPath + "/META-INF/MANIFEST.MF");
-                if(metaFile != null)
-                {
-                    metaFile.WriteAllText(metaFile.ReadAllText().Replace("Apk2Bar", "Broken"));
-                }
-            }
-        }
-
         var userFiles = allFiles.Where(x => x.IsUserNode).ToList();
 
         var apps = userFiles.Where(x => x.FullPath == "apps").ToList();
