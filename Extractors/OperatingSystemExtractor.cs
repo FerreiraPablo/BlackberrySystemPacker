@@ -84,9 +84,9 @@ namespace BlackberrySystemPacker.Extractors
                 {
                     var directory = node.Path + (node.Path.Length == 0 ? "" : "/") + node.Name;
                     var fileCount = node.DecompressedSize / 32;
-                    var childNodes = GetFileNodes(ReadNodes(node.StartOffset, fileCount), node);
+                    var childNodes = ReadNodes(node.StartOffset, fileCount);
                     node.Children = childNodes;
-                    files.AddRange(childNodes);
+                    files.AddRange(GetFileNodes(childNodes, node));
                 }
                 else
                 {

@@ -12,19 +12,23 @@ internal class Program
 
     private static bool _keepSystemNodes = false;
 
-    private static ILogger _logger;
+    private static ILogger _logger = new CustomLogger("BlackberrySystemPacker", LogLevel.Information);
 
     [DynamicDependency(DynamicallyAccessedMemberTypes.All, typeof(Program))]
     private static void Main(string[] args)
     {
-
-        _logger = new CustomLogger("BlackberrySystemPacker", LogLevel.Information);
-
         Console.WriteLine("Blackberry Signed Image Patcher V0.0.1 BETA - By Pablo Ferreira");
         Console.WriteLine("Currently only edits the User Image (QNX6 FS) of the OS.");
         Console.WriteLine("This program is not responsible for any damage caused to your device, use at your own risk.");
         Console.WriteLine("");
 
+        args = [
+            "autopatch",
+            "--os", @"C:\Users\habbo\Documents\BBDev\Images\common\OS_10.3.3.3216.qc8960.factory_sfi.User-OS-IFS.Signed",
+            "--radio", @"C:\Users\habbo\Documents\BBDev\Images\q20\Radio_Z30-Classic-Leap_10.3.3.3217.Signed",
+            "--outputdir", @"C:\Users\habbo\Documents\BBDev\output",
+            "--autoloader"
+        ];
 
         var options = GetOptions(args);
         var procedure = args.Length > 0 ? args[0].ToUpper() : null;
@@ -302,6 +306,20 @@ internal class Program
 
         var systemFiles = allFiles.Where(x => !x.IsUserNode).ToList();
 
+        var apks = systemFiles.FirstOrDefault(x => x.FullPath == "usr/apk");
+        if (apks != null)
+        {
+            var apkFiles = apks.Children;
+            foreach (var apk in apkFiles)
+            {
+                var metaFile = systemFiles.FirstOrDefault(x => x.FullPath == apk.FullPath + "/META-INF/MANIFEST.MF");
+                if(metaFile != null)
+                {
+                    metaFile.WriteAllText(metaFile.ReadAllText().Replace("Apk2Bar", "Broken"));
+                }
+            }
+        }
+
         var userFiles = allFiles.Where(x => x.IsUserNode).ToList();
 
         var apps = userFiles.Where(x => x.FullPath == "apps").ToList();
@@ -331,14 +349,14 @@ internal class Program
             "sys.setupbuffet"
         };
 
-        var breakMeta = new List<string>
-        {
-            "com.evernote"
-        };
+        var skipDeletion = new List<string>([
+            "sys.firstlaunch"
+        ]);
 
         _logger.LogInformation("Deleting bloatware for block liberation.");
 
         var appListFile = userFiles.FirstOrDefault(x => x.FullPath == "var/pps/system/installer/registeredapps/applications");
+        var random = new Random();
         if (appListFile != null)
         {
             var registeredAppsLines = appListFile.ReadAllText().Split('\n').ToList();
@@ -372,15 +390,16 @@ internal class Program
                 appId = appId.Split("::")[0];
 
 
-                if (breakMeta.Contains(match))
+                if (!skipDeletion.Contains(match))
                 {
-                    var appMeta = userFiles.FirstOrDefault(x => x.FullPath == "apps/" + appId + "/META-INF/MANIFEST.MF");
-
-                    if (appMeta != null)
+                    var appDirectory = userFiles.FirstOrDefault(x => x.FullPath == "apps/" + appId);
+                    var appContent = appDirectory.Children;
+                    foreach(var appDir in appContent)
                     {
-                        _logger.LogInformation("Breaking meta of " + appId);
-                        appMeta.WriteAllText(appMeta.ReadAllText().Replace("Application-Development-Mode: false", "Application-Development-Mode: falsa"));
+                        appDir.Delete();
                     }
+
+                    appDirectory.Name = "apps/DELETED_" + (random.Next(999999)).ToString().PadLeft(6);
                 }
 
                 var gidFile = gidDictionary.Where(x => x.Key.Contains(appId)).Select(x => x.Value).FirstOrDefault();

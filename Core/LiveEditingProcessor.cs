@@ -229,15 +229,6 @@ namespace BlackberrySystemPacker.Core
                 requiredFile = _workingNodes.FirstOrDefault(x => x != null && x.FullPath == currentTask.RelativeNodePath);
             }
 
-            if (currentTask.Data != null && (requiredFile == null || requiredFile != null && requiredFile.IsUserNode))
-            {
-                var maxSize = requiredFile.Size < 65536 ? 65536 : requiredFile.Size;
-                if (currentTask.Data.Length > maxSize)
-                {
-                    Console.WriteLine($"Task for {currentTask.RelativeNodePath} {currentTask.Type} is too large, the max size allowed is 64kb.");
-                    return;
-                }
-            }
 
             if (requiredFile == null)
             {
