@@ -1,0 +1,4 @@
+﻿<linker>
+  <assembly fullname="Newtonsoft.Json" />
+  <assembly fullname="DiscUtils.Core" />
+</linker>

@@ -1,45 +1,34 @@
-using System.Drawing;
 using System.IO;
 using System.Text;
-using System.Xml.Linq;
+using BlackberrySystemPacker.Helpers.Nodes;
 using BlackberrySystemPacker.Helpers.QNX6;
+using static System.Runtime.InteropServices.JavaScript.JSType;
 
 namespace BlackberrySystemPacker.Nodes
 {
     public class UserSystemNode : FileSystemNode
     {
-        public bool IsUnavailable { get; set; } = true;
+
+        private static bool KeepPPSNodes = true;
+
+        public static byte StatusDeleted = 2;
+
+        public static byte StatusActive = 1;
+
+        public byte Status = 1;
 
         public override string Name
         {
             get
             {
-                if (Parent == null)
-                {
-                    return null;
-                }
+                var name = GetRawName();
 
-                var definitionPosition = (Parent as UserSystemNode).GetPositionOfOffset(NameOffset);
-                Stream.Seek(definitionPosition, SeekOrigin.Begin);
-                var binaryReader = new BinaryReader(Stream);
-                binaryReader.ReadInt32();
-                var nameLength = binaryReader.ReadByte();
 
-                var name = "";
-                if (nameLength == 255)
-                {
-                    binaryReader.ReadByte();
-                    binaryReader.ReadByte();
-                    binaryReader.ReadByte();
-                    int lostAndFoundNode = binaryReader.ReadInt32();
-                    var foundName = NodeStream.GetLostAndFoundName(lostAndFoundNode);
-                    name = foundName;
-                }
-                else
-                {
-
-                    var nameBytes = binaryReader.ReadBytes(nameLength);
-                    name = Encoding.ASCII.GetString(nameBytes);
+                if(!KeepPPSNodes) { 
+                    if (name != null && name.Contains("@"))
+                    {
+                        name = name.Split("@")[0];
+                    }
                 }
 
                 return name;
@@ -57,9 +46,25 @@ namespace BlackberrySystemPacker.Nodes
                     return;
                 }
 
-                var name = value;
+                var suffix = "";
+
+
+                if(!KeepPPSNodes) { 
+                    var currentName = GetRawName();
+                    if (currentName != null && currentName.Contains("@"))
+                    {
+                        var parts = currentName.Split("@")[1].Split(".");
+                        var uid = parts[0];
+                        var gid = parts[1];
+                        var perms = parts[2];
+                        var currentPerms = FileNodeHelper.GetPermissionsOctal(Mode);
+                        suffix = $"@{UserId}.{GroupId}.{perms}";
+                    }
+                }
+
+                var name = value + suffix;
                 var currentStreamPosition = Stream.Position;
-                var definitionPosition = (Parent as UserSystemNode).GetPositionOfOffset(NameOffset);
+                var definitionPosition = (Parent as UserSystemNode).GetChildPosition(NodeNumber);
                 Stream.Seek(definitionPosition, SeekOrigin.Begin);
                 var nameBytes = Encoding.ASCII.GetBytes(name);
                 var binaryWriter = new BinaryWriter(Stream);
@@ -71,13 +76,13 @@ namespace BlackberrySystemPacker.Nodes
                 if (isLongFileName)
                 {
                     var namePosition = binaryWriter.BaseStream.Position + 3;
-                    var foundNode = NodeStream.AddLostAndFoundName(name);
+                    var foundNode = NodeStream.AddLongFilename(name);
                     if (foundNode < 0)
                     {
                         throw new Exception("No space available for that name length");
                     }
 
-                    var nam = NodeStream.GetLostAndFoundName(foundNode);
+                    var nam = NodeStream.GetLongFilename(foundNode);
                     binaryWriter.BaseStream.Position = namePosition;
                     binaryWriter.Write(foundNode);
                 }
@@ -91,170 +96,30 @@ namespace BlackberrySystemPacker.Nodes
             }
         }
 
-        public override byte[] Data { get => _data; protected set => _data = value; }
-
-        private int _size = -1;
-
-        private ushort _mode = 0;
-        
-        private int _levels = -1;
         public int NodeNumber { get; set; }
 
-        public override int Size
-        {
-            get
-            {
-                if (IsUnavailable)
-                {
-                    return _size;
-                }
+        public int LinkNumber { get; set; } = 1;
 
-                var streamPosition = Stream.Position;
-                var binaryReader = new BinaryReader(Stream);
-                binaryReader.BaseStream.Seek(MetadataPosition, SeekOrigin.Begin);
-                var value = (int)binaryReader.ReadInt64();
-                Stream.Seek(streamPosition, SeekOrigin.Begin);
-                return value;
-            }
-            set
-            {
-                if (IsUnavailable)
-                {
-                    _size = value;
-                    return;
-                }
+        public override int Size { get; set; }
 
-                if (value < 0)
-                {
-                    return;
-                }
-
-                if (value == Size)
-                {
-                    return;
-                }
-
-                var streamPosition = Stream.Position;
-                var binaryWriter = new BinaryWriter(Stream);
-                binaryWriter.BaseStream.Seek(MetadataPosition, SeekOrigin.Begin);
-                binaryWriter.Write((long)value);
-                Stream.Seek(streamPosition, SeekOrigin.Begin);
-            }
-        }
-
-        public override ushort Mode
-        {
-            get
-            {
-                if (IsUnavailable)
-                {
-                    return _mode;
-                }
-
-                var streamPosition = Stream.Position;
-                var binaryReader = new BinaryReader(Stream);
-                binaryReader.BaseStream.Seek(MetadataPosition + 32, SeekOrigin.Begin);
-                var data = binaryReader.ReadUInt16();
-                var result = data;
-                Stream.Seek(streamPosition, SeekOrigin.Begin);
-                return result;
-            }
-            set
-            {
-                if (IsUnavailable)
-                {
-                    _mode = value;
-                    return;
-                }
-
-
-                if (value < 0)
-                {
-                    return;
-                }
-
-                if (value == Mode)
-                {
-                    return;
-                }
-
-                var streamPosition = Stream.Position;
-                var binaryWriter = new BinaryWriter(Stream);
-                binaryWriter.BaseStream.Seek(MetadataPosition + 32, SeekOrigin.Begin);
-                binaryWriter.Write((ushort)value);
-                Stream.Seek(streamPosition, SeekOrigin.Begin);
-            }
-        }
-
-        public int Levels
-        {
-            get
-            {
-                if (IsUnavailable)
-                {
-                    return _levels;
-                }
-
-                var streamPosition = Stream.Position;
-                var binaryReader = new BinaryReader(Stream);
-                binaryReader.BaseStream.Seek(MetadataPosition + 100, SeekOrigin.Begin);
-                var result = binaryReader.ReadByte();
-                Stream.Seek(streamPosition, SeekOrigin.Begin);
-                return result;
-            }
-            set
-            {
-                if (IsUnavailable)
-                {
-                    _levels = value;
-                    return;
-                }
-
-                if (value < 0 || value > 255)
-                {
-                    return;
-                }
-
-                if (value == Levels)
-                {
-                    return;
-                }
-
-                var streamPosition = Stream.Position;
-                var binaryWriter = new BinaryWriter(Stream);
-                binaryWriter.BaseStream.Seek(MetadataPosition + 100, SeekOrigin.Begin);
-                binaryWriter.Write((byte)value);
-                Stream.Seek(streamPosition, SeekOrigin.Begin);
-            }
-        }
-
-        public int MetadataPosition => NodeStream.GetNodeMetadataLocation(NodeNumber);
-
-        public int NameOffset { get; set; }
-
-
-        public int NextNodeDefinitionOffset = 0;
+        public int Levels { get; set; }
 
 
         public int[] Sectors = new int[16];
 
         public int SectorSize => NodeStream.GetTopSuperBlock().BlockSize;
 
+        public UserSystemNode[] ParentReferences => NodeStream.Nodes.Where(x => x != null && x.Children != null && x.Children.Contains(this)).ToArray();
+
         public QNX6NodeStream NodeStream { get; set; }
 
         public byte[] _data = null;
 
-
         public override byte[] Read()
         {
-            //if (Data != null && Data.Length > 0)
-            //{
-            //    return Data;
-            //}
-
             var binaryReader = new BinaryReader(Stream);
             byte[] buffer = QNX6NodeStream.SharedBuffer;
-            var sectorDefinitions = GetSectorDefinitions(binaryReader);
+            var sectorDefinitions = NodeStream.GetSectorDefinitions(NodeStream.GetValidSectors(Sectors, Levels), Size);
 
             using var outputStream = new MemoryStream();
             foreach (var sectorDefinition in sectorDefinitions)
@@ -275,9 +140,9 @@ namespace BlackberrySystemPacker.Nodes
                 while (sectorSize > 0);
             }
 
-            Data = outputStream.ToArray();
-            Size = Data.Length;
-            return Data;
+            var data = outputStream.ToArray();
+            Size = data.Length;
+            return data;
         }
 
         public override void Write(byte[] data)
@@ -286,17 +151,20 @@ namespace BlackberrySystemPacker.Nodes
             var binaryWriter = new BinaryWriter(Stream);
             using var inputStream = new MemoryStream(data);
 
-            var sectorQueue = new Queue<KeyValuePair<int, int>>();
+            var usableSectors = new List<KeyValuePair<int, int>>();
             var validSectors = NodeStream.GetValidSectors(Sectors, Levels);
             var existingSectorsLeft = validSectors.ToList();
             var size = data.Length;
+
+            // Calculate the number of levels needed
+            Levels = (int)Math.Ceiling((double)size / (16 * SectorSize)) - 1;
 
             do
             {
                 var sectorSize = Math.Min(SectorSize, size);
                 if (existingSectorsLeft.Count > 0)
                 {
-                    sectorQueue.Enqueue(new KeyValuePair<int, int>(existingSectorsLeft[0], sectorSize));
+                    usableSectors.Add(new KeyValuePair<int, int>(existingSectorsLeft[0], sectorSize));
                     existingSectorsLeft.RemoveAt(0);
                 }
                 else
@@ -307,41 +175,22 @@ namespace BlackberrySystemPacker.Nodes
                         throw new Exception("There are no free blocks for data storage");
                     }
 
-                    sectorQueue.Enqueue(new KeyValuePair<int, int>(nonAllocatedBlock, sectorSize));
+                    usableSectors.Add(new KeyValuePair<int, int>(nonAllocatedBlock, sectorSize));
                     NodeStream.AllocateBlock(nonAllocatedBlock);
                 }
 
                 size -= sectorSize;
             } while (size > 0);
 
-
-            while (sectorQueue.Count < validSectors.Count)
+            while (usableSectors.Count < validSectors.Count)
             {
                 var lastSectorDefinition = validSectors.Last();
                 var offset = NodeStream.GetSectorOffset(lastSectorDefinition);
-                var emptyData = new byte[SectorSize];
-                Stream.Write(emptyData, 0, emptyData.Length);
                 NodeStream.AvailableBlocks.Add(lastSectorDefinition);
-                Console.WriteLine("Space Free" + NodeStream.AvailableBlocks.Count * 4096);
                 validSectors.Remove(lastSectorDefinition);
             }
 
-            var usableSectors = sectorQueue.ToList();
-            binaryWriter.Seek(MetadataPosition + 36, SeekOrigin.Begin);
-            for (int j = 0; j < 16; j++)
-            {
-                if (!sectorQueue.Any())
-                {
-                    binaryWriter.Write((byte)0xFF);
-                    binaryWriter.Write((byte)0xFF);
-                    binaryWriter.Write((byte)0xFF);
-                    binaryWriter.Write((byte)0xFF);
-                }
-                else
-                {
-                    binaryWriter.Write(sectorQueue.Dequeue().Key);
-                }
-            }
+            Sectors = usableSectors.Select(x => x.Key).ToArray();
 
             foreach (var sectorDefinition in usableSectors)
             {
@@ -358,23 +207,8 @@ namespace BlackberrySystemPacker.Nodes
                 }
             }
 
-            var sectors = usableSectors.Select(x => x.Key);
-            var sectorArray = new int[16];
-
-            for (int i = 0; i < 16; i++)
-            {
-                if (i < sectors.Count())
-                {
-                    sectorArray[i] = sectors.ElementAt(i);
-                }
-                else
-                {
-                    sectorArray[i] = -1;
-                }
-            }
-            Sectors = sectorArray;
-            Data = data;
             Size = data.Length;
+            Apply();
         }
 
         private FileSystemNode Create(int mode, string name = null, byte[] data = null)
@@ -384,20 +218,13 @@ namespace BlackberrySystemPacker.Nodes
                 return null;
             }
 
-            if(!NodeStream.AvailableBlocks.Any())
-            {
-                Console.WriteLine("No space available for data storage");
-                return null;
-            }
-
-
             if (data == null)
             {
                 data = Array.Empty<byte>();
             }
+
             var randomName = name ?? "NewFile" + new Random().Next(0, 1000);
             var nodeNumber = NodeStream.GetFreeNodeNumber();
-            var nameOffset = NextNodeDefinitionOffset;
 
 
             var definition = new byte[32];
@@ -407,14 +234,21 @@ namespace BlackberrySystemPacker.Nodes
 
             var childNode = new UserSystemNode();
             NodeStream.Nodes[nodeNumber] = childNode;
-            childNode.IsUnavailable = false;
             childNode.Stream = Stream;
             childNode.NodeStream = NodeStream;
             childNode.Parent = this;
-            childNode.NameOffset = nameOffset;
             childNode.NodeNumber = nodeNumber;
+            childNode.LinkNumber = 1;
 
-            if (mode == 16893)
+            childNode.Size = data.Length;
+            childNode.Mode = mode;
+            childNode.Path = FullPath;
+            childNode.Name = name;
+            childNode.GroupId = GroupId;
+            childNode.UserId = UserId;
+            childNode.SetPermissions(GetPermissions());
+
+            if (childNode.IsDirectory())
             {
                 data = new byte[4096];
                 using var structureWriter = new BinaryWriter(new MemoryStream(data));
@@ -424,6 +258,7 @@ namespace BlackberrySystemPacker.Nodes
                 structureWriter.Write(childNode.NodeNumber);
                 structureWriter.Write((byte)currentDirName.Length);
                 structureWriter.Write(Encoding.ASCII.GetBytes(currentDirName));
+                childNode.LinkNumber++;
 
                 structureWriter.Seek(32, SeekOrigin.Begin);
                 var parentDirName = "..";
@@ -431,41 +266,20 @@ namespace BlackberrySystemPacker.Nodes
                 structureWriter.Write((byte)parentDirName.Length);
                 structureWriter.Write(Encoding.ASCII.GetBytes(parentDirName));
                 childNode.Children = new List<FileSystemNode>();
+                LinkNumber++;
+                Apply();
             }
 
-            childNode.Size = data.Length;
-            childNode.Mode = (ushort)mode;
-            childNode.Path = FullPath;
-            childNode.Name = name;
-
-
-            var contentWriter = new BinaryWriter(Stream);
-            //NodeStream.GetTopSuperBlock().FreeBlockCount--;
-            contentWriter.Seek(childNode.MetadataPosition + 8, SeekOrigin.Begin);
-            contentWriter.Write(88);
-            contentWriter.Write(88);
-
-            contentWriter.Seek(childNode.MetadataPosition + 101, SeekOrigin.Begin);
-            contentWriter.Write((byte)1);
-
-            contentWriter.Seek(childNode.MetadataPosition + 16, SeekOrigin.Begin);
-            var date = 1519233000; //(int)((DateTimeOffset)DateTime.Now).ToUnixTimeSeconds();
-            contentWriter.Write(date);
-            contentWriter.Write(date);
-            contentWriter.Write(date);
-            contentWriter.Write(date);
             childNode.Write(data);
+            Children = Children.Append(childNode).ToArray();
 
-
-            
-            NextNodeDefinitionOffset += 32;
-            Children = Children.Append(childNode);
+            NodeStream.GetTopSuperBlock().FreeNodeCount--;
             return childNode;
         }
 
         public override void Delete()
         {
-            if (string.IsNullOrEmpty(Name))
+            if (Status == StatusDeleted)
             {
                 return;
             }
@@ -480,19 +294,30 @@ namespace BlackberrySystemPacker.Nodes
             }
 
             ClearData();
-            var writer = new BinaryWriter(Stream);
-            var statusPosition = MetadataPosition + 101;
-            writer.Seek(statusPosition, SeekOrigin.Begin);
-            writer.Write((byte)2);
-            RemoveParentMetadata();
-            Parent.Children = Parent.Children.Where(c => c != this);
-            (Parent as UserSystemNode).NextNodeDefinitionOffset -= 32;
+            NodeStream.GetTopSuperBlock().FreeNodeCount++;
+            Status = StatusDeleted;
+            NodeStream.WriteNode(this);
+            var parents = ParentReferences;
+            foreach (var parent in parents)
+            {
+                parent.RemoveChild(NodeNumber);
+                if(IsDirectory())
+                {
+                    parent.LinkNumber--;
+                    parent.Apply();
+                }
+            }
+            Parent = null;
             return;
         }
 
-
         private (UserSystemNode, string) EnsurePathAvailability(string name)
         {
+            if (string.IsNullOrWhiteSpace(FullPath))
+            {
+                return (this, name);
+            }
+
             var path = name.Replace(FullPath, "").Split("/");
             var fileName = path[path.Length - 1];
             var directories = path.Take(path.Length - 1).Where(x => x != Name && !string.IsNullOrWhiteSpace(x));
@@ -503,16 +328,19 @@ namespace BlackberrySystemPacker.Nodes
                 checkedPath += "/" + directory;
 
                 var expectedFullPath = FullPath + checkedPath;
-                var existingNode = ownerDirectory.Children.FirstOrDefault(x => x != null && x.FullPath == expectedFullPath);
+                var existingNode = NodeStream.Nodes.FirstOrDefault(x => x != null && x.FullPath == expectedFullPath);
                 if (existingNode == null)
                 {
                     ownerDirectory = ownerDirectory.CreateDirectory(directory) as UserSystemNode;
+                }
+                else
+                {
+                    ownerDirectory = existingNode;
                 }
             }
 
             return (ownerDirectory, fileName);
         }
-
 
         public override FileSystemNode CreateFile(string name = null, byte[] data = null)
         {
@@ -520,10 +348,18 @@ namespace BlackberrySystemPacker.Nodes
             {
                 return null;
             }
+
+            if (NodeStream.GetUnallocatedBlock() == -1)
+            {
+                Console.WriteLine("No space available for data storage");
+                return null;
+            }
+
             var (ownerDirectory, fileName) = EnsurePathAvailability(name);
-            var file = ownerDirectory.Create(33184, fileName, data); ;
+            var file = ownerDirectory.Create(33279, fileName, data); ;
             return file;
         }
+
 
         public override FileSystemNode CreateDirectory(string name = null)
         {
@@ -532,11 +368,43 @@ namespace BlackberrySystemPacker.Nodes
             {
                 return null;
             }
+
+            if (NodeStream.GetUnallocatedBlock() == -1)
+            {
+                Console.WriteLine("No space available for data storage");
+                return null;
+            }
+
             var (ownerDirectory, fileName) = EnsurePathAvailability(name);
 
-            var node = Create(16893, fileName, null) as UserSystemNode;
+            var node = Create(16895, fileName, null) as UserSystemNode;
             return node;
         }
+
+        public FileSystemNode CreateSymlink(FileSystemNode node, string name)
+        {
+            if (!IsDirectory() || string.IsNullOrWhiteSpace(name))
+            {
+                return null;
+            }
+            var (ownerDirectory, fileName) = EnsurePathAvailability(name);
+            //var symlink = ownerDirectory.Create(17409, fileName, null) as UserSystemNode;
+            var linkNode = (node as UserSystemNode);
+
+            var data = new byte[32];
+            using var structureWriter = new BinaryWriter(new MemoryStream(data));
+            structureWriter.Seek(0, SeekOrigin.Begin);
+            structureWriter.Write(linkNode.NodeNumber);
+            structureWriter.Write((byte)fileName.Length);
+            structureWriter.Write(Encoding.ASCII.GetBytes(fileName));
+            ownerDirectory.IncludeMetadata(data);
+            //symlink.Size = (byte)fileName.Length;
+            //symlink.Sectors = linkNode.Sectors;
+            //NodeStream.WriteNode(symlink);
+
+            return node;
+        }
+
 
         public override void Move(FileSystemNode parent)
         {
@@ -548,166 +416,90 @@ namespace BlackberrySystemPacker.Nodes
             realParent.IncludeMetadata(RemoveParentMetadata());
         }
 
-        public void OverwriteEntityData(byte[] data)
-        {
-            Data = data;
-        }
-
-        protected List<KeyValuePair<int, int>> GetSectorDefinitions(BinaryReader binaryReader)
-        {
-            var sectorDefinitions = new List<KeyValuePair<int, int>>();
-            var validSectors = NodeStream.GetValidSectors(Sectors, Levels);
-            if (validSectors.Count == 0)
-            {
-                return sectorDefinitions;
-            }
-
-            var finalSector = validSectors.Last();
-
-            for (int sectorIndex = 0; sectorIndex < validSectors.Count; sectorIndex++)
-            {
-                var sectorPosition = validSectors[sectorIndex];
-                var isFinalSector = sectorPosition == finalSector;
-                var SectorSizeLeft = (Size % SectorSize == 0) ? SectorSize : (Size % SectorSize);
-
-                int sectorSize;
-                if (isFinalSector)
-                {
-                    sectorSize = SectorSizeLeft;
-                    sectorDefinitions.Add(new KeyValuePair<int, int>(sectorPosition, sectorSize));
-                    break;
-                }
-                else
-                {
-                    sectorSize = SectorSize;
-                    var startingPoint = sectorIndex;
-                    var nextValidSectorPosition = validSectors[sectorIndex + 1];
-                    var missingSectorsBetween = nextValidSectorPosition - sectorPosition;
-                    while (missingSectorsBetween == sectorIndex + 1 - startingPoint)
-                    {
-                        sectorIndex++;
-                        var currentSector = validSectors[sectorIndex];
-                        isFinalSector = currentSector != finalSector;
-                        if (isFinalSector)
-                        {
-                            sectorSize += SectorSize;
-                            continue;
-                        }
-                        sectorSize += SectorSizeLeft;
-                        break;
-                    }
-                }
-
-                sectorDefinitions.Add(new KeyValuePair<int, int>(sectorPosition, sectorSize));
-            }
-
-            return sectorDefinitions;
-        }
-
         protected void IncludeMetadata(byte[] metadata)
         {
             if (!this.IsDirectory())
             {
                 return;
             }
-            var definitionPosition = GetPositionOfOffset(NextNodeDefinitionOffset);
-            var contentWriter = new BinaryWriter(Stream);
-            contentWriter.BaseStream.Seek(definitionPosition, SeekOrigin.Begin);
-            contentWriter.Write(metadata);
-            NextNodeDefinitionOffset += 32;
+            var currentNodes = Read();
+            var nodes = currentNodes.Length / 32;
+            var nodesData = new List<byte[]>();
+            for (var i = 0; i < nodes; i++)
+            {
+                var nodePosition = i * 32;
+                var currentNodeNumber = BitConverter.ToInt32(currentNodes, nodePosition);
+                if (currentNodeNumber == 0)
+                {
+                    break;
+                }
+
+
+                var nodeData = new byte[32];
+                Array.Copy(currentNodes, nodePosition, nodeData, 0, 32);
+                nodesData.Add(nodeData);
+            }
+
+            nodesData.Add(metadata);
+
+            for (var i = nodesData.Count(); i < nodes; i++)
+            {
+                var nodeData = new byte[32];
+                nodesData.Add(nodeData);
+            }
+
+            var newStructure = nodesData.SelectMany(x => x).ToArray();
+            Write(newStructure);
         }
 
-        protected void ClearSectors(BinaryWriter binaryWriter)
+        private byte[] RemoveChild(int nodeNumber)
         {
-            var validSectors = new List<int>();
-            var firstSector = Sectors.First();
-            if (firstSector > 0)
+            var data = Read();
+            var nodes = data.Length / 32;
+            var nodesData = new List<byte[]>();
+            byte[] removedNode = null;
+            for (var i = 0; i < nodes; i++)
             {
-                foreach (int sector in Sectors)
+                var nodePosition = i * 32;
+                var currentNodeNumber = BitConverter.ToInt32(data, nodePosition);
+                if (currentNodeNumber == 0)
                 {
-                    if (sector != -1)
-                    {
-                        validSectors.Add(sector);
-                    }
+                    break;
                 }
+
+                var nodeData = new byte[32];
+                Array.Copy(data, nodePosition, nodeData, 0, 32);
+
+                if (currentNodeNumber == nodeNumber)
+                {
+                    removedNode = nodeData;
+                    continue;
+                }
+
+                nodesData.Add(nodeData);
             }
 
-            if (Levels > 0)
+
+            for (var i = nodesData.Count(); i < nodes; i++)
             {
-                for (int i = 1; i <= Levels; i++)
-                {
-                    var levelSectors = validSectors;
-                    validSectors = new List<int>();
-                    foreach (var sector in levelSectors)
-                    {
-                        if (sector == -1)
-                        {
-                            break;
-                        }
-                        binaryWriter.BaseStream.Seek(NodeStream.GetSectorOffset(sector), SeekOrigin.Begin);
-                        for (int k = 0; k < SectorSize / 4; k++)
-                        {
-                            binaryWriter.Write(-1);
-                        }
-                    }
-                }
+                var nodeData = new byte[32];
+                nodesData.Add(nodeData);
             }
+
+            var newStructure = nodesData.SelectMany(x => x).ToArray();
+            Write(newStructure);
+            Children = Children.Where(c => (c as UserSystemNode).NodeNumber != nodeNumber).ToArray();
+
+            return removedNode;
         }
 
         private byte[] RemoveParentMetadata()
         {
-            var binaryReader = new BinaryReader(Stream);
-            var definitionStart = NameOffset;
-            var definitionEnd = definitionStart + 32;
-
-            var parent = Parent as UserSystemNode;
-            var parentDefinitionStart = parent.GetPositionOfOffset(0);
-            Stream.Seek(parentDefinitionStart, SeekOrigin.Begin);
-            var modifiedParentDefinition = new List<byte>();
-            var removedMetaData = new List<byte>();
-
-            var validSectors = NodeStream.GetValidSectors(parent.Sectors, parent.Levels);
-            var blockSize = NodeStream.GetTopSuperBlock().BlockSize;
-            for (var i = 0; i < validSectors.Count * blockSize; i++)
-            {
-                var foundData = binaryReader.ReadByte();
-                if (i >= definitionStart && i < definitionEnd)
-                {
-
-                    removedMetaData.Add(foundData);
-                    continue;
-                }
-
-                modifiedParentDefinition.Add(foundData);
-            }
-
-            for (var i = 0; i < 32; i++)
-            {
-                modifiedParentDefinition.Add((byte)0);
-            }
-
-            var data = Encoding.UTF8.GetString(modifiedParentDefinition.ToArray());
-            Parent.Write(modifiedParentDefinition.ToArray());
-
-            return removedMetaData.ToArray();
-        }
-
-        public static uint Qnx6LfileChecksum(string name, uint size)
-        {
-            uint crc = 0;
-            int end = (int)size; // Cast size to int for indexing
-
-            for (int i = 0; i < end; i++)
-            {
-                crc = ((crc >> 1) + name[i]) ^
-                      ((crc & 0x00000001) != 0 ? 0x80000000 : 0);
-            }
-            return crc;
+            return (Parent as UserSystemNode).RemoveChild(NodeNumber);
         }
 
         private void ClearData()
         {
-
             var binaryReader = new BinaryReader(Stream);
             var binaryWriter = new BinaryWriter(Stream);
             var sectorDefinitions = NodeStream.GetValidSectors(Sectors, Levels);
@@ -715,34 +507,12 @@ namespace BlackberrySystemPacker.Nodes
             foreach (var sectorDefinition in sectorDefinitions)
             {
                 var sectorPosition = sectorDefinition;
-                var sectorSize = 4096;
                 NodeStream.AvailableBlocks.Add(sectorPosition);
-
-                Console.WriteLine("Space Free" + NodeStream.AvailableBlocks.Count * 4096);
-
-                var offset = NodeStream.GetSectorOffset(sectorPosition);
-                binaryReader.BaseStream.Seek(offset, SeekOrigin.Begin);
-
-                do
-                {
-                    int contentSize = Math.Min(262144, sectorSize);
-                    binaryWriter.Write(new byte[contentSize]);
-                    sectorSize -= contentSize;
-                }
-                while (sectorSize > 0);
             }
-            ClearSectors(binaryWriter);
+            //ClearSectors(binaryWriter);
         }
 
-        public long GetDefinitionStart()
-        {
-            var sectors = GetSectorDefinitions(new BinaryReader(Stream));
-            var sectorDefinition = sectors.First();
-            var sectorPosition = sectorDefinition.Key;
-            return NodeStream.GetSectorOffset(sectorPosition);
-        }
-
-        public long GetPositionOfOffset(int offset) 
+        public long GetPositionOfOffset(int offset)
         {
             var blockIndex = Math.Floor((decimal)offset / 4096);
             var validSectors = NodeStream.GetValidSectors(Sectors, Levels);
@@ -751,5 +521,75 @@ namespace BlackberrySystemPacker.Nodes
             offset = offset % 4096;
             return blockPosition + offset;
         }
+
+        public long GetChildPosition(int nodeNumber)
+        {
+            var binaryReader = new BinaryReader(Stream);
+            var binaryWriter = new BinaryWriter(Stream);
+            var sectorDefinitions = NodeStream.GetValidSectors(Sectors, Levels);
+            var data = Read();
+            var nodes = data.Length / 32;
+            for (var i = 0; i < nodes; i++)
+            {
+                var nodePosition = i * 32;
+                var currentNodeNumber = BitConverter.ToInt32(data, nodePosition);
+                if (currentNodeNumber == 0)
+                {
+                    break;
+                }
+                if (currentNodeNumber == nodeNumber)
+                {
+                    return GetPositionOfOffset(nodePosition);
+                }
+            }
+
+            return -1;
+        }
+
+
+        private string GetRawName()
+        {
+            if (Parent == null)
+            {
+                return null;
+            }
+
+            var definitionPosition = (Parent as UserSystemNode).GetChildPosition(NodeNumber);
+            if (definitionPosition == -1)
+            {
+                return "";
+            }
+
+
+            Stream.Seek(definitionPosition, SeekOrigin.Begin);
+            var binaryReader = new BinaryReader(Stream);
+            var nodeNumber = binaryReader.ReadInt32();
+            var nameLength = binaryReader.ReadByte();
+
+            var name = "";
+            if (nameLength == 255 || nameLength == 0)
+            {
+                binaryReader.ReadByte();
+                binaryReader.ReadByte();
+                binaryReader.ReadByte();
+                int lostAndFoundNode = binaryReader.ReadInt32();
+                var foundName = NodeStream.GetLongFilename(lostAndFoundNode);
+                name = foundName;
+            }
+            else
+            {
+
+                var nameBytes = binaryReader.ReadBytes(nameLength);
+                name = Encoding.ASCII.GetString(nameBytes);
+            }
+
+            return name;
+        }
+
+        public override void Apply()
+        {
+            NodeStream.WriteNode(this);
+        }
     }
+
 }

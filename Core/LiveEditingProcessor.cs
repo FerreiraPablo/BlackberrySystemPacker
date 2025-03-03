@@ -1,55 +1,127 @@
-﻿using BlackberrySystemPacker.Nodes;
-using System;
+﻿using BlackberrySystemPacker.Helpers.EditingCommands;
+using BlackberrySystemPacker.Nodes;
+using Microsoft.Extensions.Logging;
 using System.Collections.Concurrent;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
-using static System.Runtime.InteropServices.JavaScript.JSType;
 
 namespace BlackberrySystemPacker.Core
 {
-    enum LiveEditingTaskType
+    public enum LiveEditingTaskType
     {
         Write,
         Delete,
         CreateFile,
         CreateDirectory,
+        SetPermissions,
+        SetGroup,
+        SetUser,
+        SetMode,
+        Rename,
+        ChangeParent
     }
 
-    class LiveEditingTask
+    public class LiveEditingTask
     {
+        public string Name = null;
+
         public string RelativeNodePath = "";
 
         public byte[] Data;
+
+        public int Permissions = 0;
+
+        public int GroupId = 0;
+
+        public int UserId = 0;
+
+        public int Mode = 0;
+
+        public string ParentRelativePath = "";
 
         public LiveEditingTaskType Type;
     }
 
     public class LiveEditingProcessor
     {
-        private ConcurrentQueue<LiveEditingTask> Tasks = new();
+        private List<EditorCommand> commands = new List<EditorCommand>()
+        {
+            new ChangeGroupCommand(),
+            new ChangeModeCommand(),
+            new ChangePermissionsCommand(),
+            new ChangeUserCommand(),
+            new ContentReplaceCommand(),
+            new CreateDirectoryCommand(),
+            new PermissionsCommand(),
+            new PushCommand(),
+            new RemoveCommand(),
+            new RemoveLineCommand(),
+            new TouchCommand(),
+        };
+
+        public bool KeepRunning = true;
+
+        private ConcurrentQueue<LiveEditingTask> _tasks = new();
         private List<FileSystemNode> _workingNodes;
         private string _sourceDirectory;
+        private readonly ILogger _logger;
 
-        public LiveEditingProcessor(List<FileSystemNode> workingNodes, string sourceDirectory)
+        public LiveEditingProcessor(List<FileSystemNode> workingNodes, string sourceDirectory, ILogger logger)
         {
             _workingNodes = workingNodes;
             _sourceDirectory = sourceDirectory;
-
+            _logger = logger;
         }
 
         public async Task Start()
         {
-            Console.WriteLine("Started live editing processor.");
-            ;
+            _logger.LogInformation("Started live editing processor.");
+            _logger.LogInformation("Write 'quit' then [ENTER] to stop the processor, and end the live editing session...");
 
-            Task.WhenAll(ApplyChanges());
-            while(true) {
-                RunTasks();
-            }
+            await Task.WhenAll(
+            ApplyChanges(),
+            Task.Factory.StartNew(() =>
+            {
+                while (true)
+                {
+                    var input = Console.ReadLine();
+                    if (string.IsNullOrWhiteSpace(input))
+                    {
+                        continue;
+                    }
+
+                    if (input == "quit")
+                    {
+                        break;
+                    }
+
+                    var parts = input.Split(" ");
+                    var command = parts[0].ToLower();
+                    var existingCommand = commands.FirstOrDefault(x => x.Aliases.Contains(command));
+                    if (existingCommand != null)
+                    {
+                        try {
+                            existingCommand.Execute(_tasks, _workingNodes, parts);
+                        } catch(Exception e)
+                        {
+                            _logger.LogError(e.Message);
+                        }
+                    }
+                    else
+                    {
+                        _logger.LogError($"Invalid command: {command}");
+                    }
+                }
+                Console.WriteLine("");
+                _logger.LogInformation("Stopping live editing processor.");
+                KeepRunning = false;
+            }),
+            Task.Factory.StartNew(() =>
+            {
+                while (KeepRunning)
+                {
+                    RunTasks();
+                }
+            }));
         }
-
 
         private FileSystemNode GetExistingParent(string path)
         {
@@ -69,33 +141,110 @@ namespace BlackberrySystemPacker.Core
             return null;
         }
 
+        
+        public void Build()
+        {
+            _logger.LogInformation("Building workspace, creating files that don't exist.");
+            var stopWatch = new System.Diagnostics.Stopwatch();
+            stopWatch.Start();
+            if (!Directory.Exists(_sourceDirectory))
+            {
+                Directory.CreateDirectory(_sourceDirectory);
+            }
+
+            _workingNodes = _workingNodes.OrderBy(x => x.IsDirectory()).ToList();
+            foreach (var node in _workingNodes)
+            {
+                var path = Path.Combine(_sourceDirectory, node.FullPath);
+                if (node.IsDirectory())
+                {
+                    if (!Directory.Exists(path))
+                    {
+                        Directory.CreateDirectory(path);
+                        Directory.SetLastWriteTime(path, node.CreationDate);
+                    }
+                }
+                else
+                {
+                    var data = node.Read();
+                    var directory = Path.GetDirectoryName(path); ;
+                    var existingDirectory = Directory.Exists(directory);
+
+                    if (!existingDirectory)
+                    {
+                        Directory.CreateDirectory(directory);
+                    }
+
+                    if (File.Exists(path))
+                    {
+                        continue;
+                    }
+
+                    var expectedPath = path;
+                    File.WriteAllBytes(expectedPath, data);
+                    File.SetLastWriteTime(expectedPath, node.CreationDate);
+                }
+            }
+
+            stopWatch.Stop();
+            _logger.LogInformation($"Created workspace. {Math.Round(stopWatch.Elapsed.TotalSeconds, 1)}s");
+        }
+
 
         private void RunTasks()
         {
-            var existingTask = Tasks.TryDequeue(out var currentTask);
+            var existingTask = _tasks.TryDequeue(out var currentTask);
             if (!existingTask)
             {
                 return;
             }
 
-
             var isCreationTask = currentTask.Type == LiveEditingTaskType.CreateFile || currentTask.Type == LiveEditingTaskType.CreateDirectory;
             FileSystemNode requiredFile;
             if (isCreationTask)
             {
-                requiredFile = GetExistingParent(currentTask.RelativeNodePath);
-            } else
+                var existingNode = _workingNodes.FirstOrDefault(x => x != null && x.FullPath == currentTask.RelativeNodePath);
+                if (existingNode != null)
+                {
+                    if (currentTask.Type == LiveEditingTaskType.CreateFile)
+                    {
+
+                        requiredFile = existingNode;
+                        currentTask.Type = LiveEditingTaskType.Write;
+                        _logger.LogWarning("File already existed, writing on it instead...");
+                    }
+                    else
+                    {
+                        _logger.LogError("The directory already exists, skipping directory creation task...");
+                        return;
+                    }
+                }
+                else
+                {
+                    requiredFile = GetExistingParent(currentTask.RelativeNodePath);
+                }
+            }
+            else
             {
                 requiredFile = _workingNodes.FirstOrDefault(x => x != null && x.FullPath == currentTask.RelativeNodePath);
             }
 
+            if (currentTask.Data != null && (requiredFile == null || requiredFile != null && requiredFile.IsUserNode))
+            {
+                var maxSize = requiredFile.Size < 65536 ? 65536 : requiredFile.Size;
+                if (currentTask.Data.Length > maxSize)
+                {
+                    Console.WriteLine($"Task for {currentTask.RelativeNodePath} {currentTask.Type} is too large, the max size allowed is 64kb.");
+                    return;
+                }
+            }
 
             if (requiredFile == null)
             {
                 return;
             }
 
-            Console.WriteLine($"Executing task for {currentTask.RelativeNodePath} {currentTask.Type}");
+            _logger.LogInformation($"Executing task for {currentTask.RelativeNodePath} {currentTask.Type}");
             var stopWatch = new System.Diagnostics.Stopwatch();
             stopWatch.Start();
             switch (currentTask.Type)
@@ -109,101 +258,102 @@ namespace BlackberrySystemPacker.Core
                     break;
                 case LiveEditingTaskType.CreateFile:
                     var createdNode = requiredFile.CreateFile(currentTask.RelativeNodePath, currentTask.Data);
-                    _workingNodes.Add(createdNode);
+                    if (createdNode != null)
+                        _workingNodes.Add(createdNode);
                     break;
                 case LiveEditingTaskType.CreateDirectory:
                     var createdDirectoryNode = requiredFile.CreateDirectory(currentTask.RelativeNodePath);
-                    _workingNodes.Add(createdDirectoryNode);
+                    if (createdDirectoryNode != null)
+                        _workingNodes.Add(createdDirectoryNode);
+                    break;
+                case LiveEditingTaskType.SetPermissions:
+                    requiredFile.SetPermissions(currentTask.Permissions);
+                    requiredFile.Write(requiredFile.Read());
+                    break;
+                case LiveEditingTaskType.SetUser:
+                    requiredFile.UserId = currentTask.UserId;
+                    requiredFile.Write(requiredFile.Read());
+                    break;
+                case LiveEditingTaskType.SetGroup:
+                    requiredFile.GroupId = currentTask.GroupId;
+                    requiredFile.Write(requiredFile.Read());
+                    break;
+                case LiveEditingTaskType.SetMode:
+                    requiredFile.Mode = currentTask.Mode;
+                    requiredFile.Write(requiredFile.Read());
+                    break;
+                case LiveEditingTaskType.ChangeParent:
+                    var parent = _workingNodes.FirstOrDefault(x => x.FullPath == currentTask.ParentRelativePath);
+                    if (parent != null)
+                    {
+                        requiredFile.Move(parent);
+                    }
+                    else
+                    {
+                        _logger.LogError($"Parent {currentTask.ParentRelativePath} not found for {currentTask.RelativeNodePath}");
+                    }
+                    break;
+                case LiveEditingTaskType.Rename:
+                    if (string.IsNullOrWhiteSpace(currentTask.Name))
+                    {
+                        _logger.LogError("No new name provided for rename task.");
+                        break;
+                    }
+                    else
+                    {
+                        requiredFile.Name = currentTask.Name;
+                        requiredFile.Write(requiredFile.Read());
+                    }
                     break;
             }
 
             stopWatch.Stop();
-            Console.WriteLine($"Task for {currentTask.RelativeNodePath} {currentTask.Type} took {stopWatch.Elapsed.TotalSeconds}");
-        }
-
-        public void Build()
-        {
-            if (!Directory.Exists(_sourceDirectory))
-            {
-                Directory.CreateDirectory(_sourceDirectory);
-            }
-
-            List<string> AddedFiles = new List<string>();
-            List<string> Duplicates = new List<string>();
-
-            foreach (var node in _workingNodes)
-            {
-                var path = Path.Combine(_sourceDirectory, node.FullPath);
-
-                if (AddedFiles.Contains(node.FullPath))
-                {
-                    Duplicates.Add(node.FullPath);
-                    continue;
-                }
-                else
-                {
-                    AddedFiles.Add(node.FullPath);
-                }
-
-                if (node.IsDirectory())
-                {
-                    if (!Directory.Exists(path))
-                    {
-                        Directory.CreateDirectory(path);
-                    }
-                }
-                else
-                {
-                    node.Read();
-                    if (node.Data == null || node.Data.Length == 0)
-                    {
-                        continue;
-                    }
-
-                    var directory = Path.GetFullPath(path.Replace(node.Name, ""));
-                    var existingDirectory = Directory.Exists(directory);
-                    if (!existingDirectory)
-                    {
-                        Directory.CreateDirectory(directory);
-                    }
-                    var expectedPath = path;
-                    File.WriteAllBytes(expectedPath, node.Data);
-                }
-            }
-
-            Console.WriteLine("Created workspace.");
+            _logger.LogInformation($"Task for {currentTask.RelativeNodePath} {currentTask.Type} took {Math.Round(stopWatch.Elapsed.TotalSeconds, 1)}s");
         }
 
         private async Task ApplyChanges()
         {
-            var localFiles = new ConcurrentBag<string>(Directory.GetFileSystemEntries(_sourceDirectory, "*", SearchOption.AllDirectories));
+
+            var dirSeparator = Path.DirectorySeparatorChar;
+            var files = _workingNodes.Select(x => Path.Combine(_sourceDirectory, x.FullPath.Replace('/', dirSeparator).Replace('\\', dirSeparator))).ToList(); /// Directory.GetFileSystemEntries(_sourceDirectory, "*", SearchOption.AllDirectories);
+            var localFiles = new ConcurrentBag<string>(files);
             var startingModificationTimes = new ConcurrentDictionary<string, DateTime>();
 
-            while (true)
-            {
 
+            while (KeepRunning)
+            {
                 var currentFiles = new ConcurrentBag<string>(Directory.GetFileSystemEntries(_sourceDirectory, "*", SearchOption.AllDirectories));
                 var deletedEntries = localFiles.Except(currentFiles).OrderBy(x => x.Length).ToList();
-                var parentsToBeDeleted = new List<string>();
+                var toDelete = new List<string>();
                 foreach (var parent in deletedEntries)
                 {
-                    var containerParentExist = parentsToBeDeleted.Any(x => parent.StartsWith(x));
+                    var containerParentExist = toDelete.Any(x => parent.StartsWith(x));
                     if (containerParentExist)
                     {
                         continue;
                     }
-                    parentsToBeDeleted.Add(parent);
+                    toDelete.Add(parent);
                 }
 
-                var removedFiles = new ConcurrentBag<string>(parentsToBeDeleted);
-                
+                if (OperatingSystem.IsWindows())
+                {
+                    var deleteList = new List<string>(toDelete);
+                    foreach (var deletedFile in deleteList)
+                    {
+                        var existingCaseInsensitive = currentFiles.FirstOrDefault(x => x.Equals(deletedFile, StringComparison.CurrentCultureIgnoreCase));
+                        if (existingCaseInsensitive != null)
+                        {
+                            toDelete.Remove(deletedFile);
+                        }
+                    }
+                }
 
-
+                var removedFiles = new ConcurrentBag<string>(toDelete);
                 var addedFiles = new ConcurrentBag<string>(currentFiles.Except(localFiles));
                 localFiles = currentFiles;
-                await Parallel.ForEachAsync(removedFiles, (file , _) =>
+                await Parallel.ForEachAsync(removedFiles, (file, _) =>
                 {
-                    if(file == null)
+                    if (file == null)
                     {
                         return new ValueTask();
                     }
@@ -219,7 +369,7 @@ namespace BlackberrySystemPacker.Core
                         RelativeNodePath = relativePath,
                         Type = LiveEditingTaskType.Delete,
                     };
-                    Tasks.Enqueue(task);
+                    _tasks.Enqueue(task);
 
                     return new ValueTask();
                 });
@@ -245,7 +395,7 @@ namespace BlackberrySystemPacker.Core
                         Data = isDirectory ? null : File.ReadAllBytes(file),
                         Type = isDirectory ? LiveEditingTaskType.CreateDirectory : LiveEditingTaskType.CreateFile,
                     };
-                    Tasks.Enqueue(task);
+                    _tasks.Enqueue(task);
                     return new ValueTask();
                 });
 
@@ -290,15 +440,11 @@ namespace BlackberrySystemPacker.Core
                         Data = data,
                         Type = LiveEditingTaskType.Write,
                     };
-                    Tasks.Enqueue(task);
+                    _tasks.Enqueue(task);
 
                     return new ValueTask();
                 });
-
-                Thread.Sleep(1000);
             }
         }
-
-
     }
 }

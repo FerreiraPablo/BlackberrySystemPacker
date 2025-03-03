@@ -1,5 +1,5 @@
 ﻿using BlackberrySystemPacker.Decompressors;
-using IronCompress;
+using BlackberrySystemPacker.Helpers.RCFS;
 using System.Text;
 
 namespace BlackberrySystemPacker.Nodes
@@ -7,156 +7,63 @@ namespace BlackberrySystemPacker.Nodes
     public class OperatingSystemNode : FileSystemNode
     {
 
-        public bool IsUnavailable = true;
-        public override string Name { get => GetName(); set => SetName(value); }
+        public int Flags { get; set; }
+
+        public override string Name { get; set; }
+
+        public override int Size {get => DecompressedSize; set => DecompressedSize = value; }
+
+        public int NodeNumber { get; set; }
+
+        public int NameOffset { get; set; }
+
+        public int BlockSize { get; set; }
+
+        public int StartOffset { get; set; }
 
         public long PartitionOffset = 0;
 
         public static IDecompressor Compressor = new UnsafeLzoDecompressor();
 
-        private int _size = -1;
-
-        private ushort _mode;
-
         public long LocalPosition = 0;
 
-        public long GlobalPosition = 0;
-
-        public override int Size
-        {
-            get
-            {
-                if (IsUnavailable)
-                {
-                    return _size;
-                }
-
-                var streamPosition = Stream.Position;
-                var binaryReader = new BinaryReader(Stream);
-                Stream.Seek(PartitionOffset + LocalPosition + 12, SeekOrigin.Begin);
-                var value = binaryReader.ReadInt32();
-                Stream.Seek(streamPosition, SeekOrigin.Begin);
-                return value;
-            }
-            set
-            {
-                if (IsUnavailable)
-                {
-                    _size = value;
-                    return;
-                }
-
-                if (value < 0)
-                {
-                    return;
-                }
-
-                if (value == Size)
-                {
-                    return;
-                }
-
-                var streamPosition = Stream.Position;
-                var binaryWriter = new BinaryWriter(Stream);
-                Stream.Seek(PartitionOffset + LocalPosition + 12, SeekOrigin.Begin);
-                binaryWriter.Write(value);
-                Stream.Seek(streamPosition, SeekOrigin.Begin);
-            }
-        }
-
-
-        public override ushort Mode
-        {
-            get
-            {
-                if (IsUnavailable)
-                {
-                    return _mode;
-                }
-
-                var streamPosition = Stream.Position;
-                var binaryReader = new BinaryReader(Stream);
-                Stream.Seek(PartitionOffset + LocalPosition, SeekOrigin.Begin);
-                var value = binaryReader.ReadUInt16();
-                Stream.Seek(streamPosition, SeekOrigin.Begin);
-                return value;
-            }
-            set
-            {
-                if (IsUnavailable)
-                {
-                    _mode = value;
-                    return;
-                }
-
-
-                if (value < 0)
-                {
-                    return;
-                }
-
-                if (value == Mode)
-                {
-                    return;
-                }
-
-                var streamPosition = Stream.Position;
-                var binaryWriter = new BinaryWriter(Stream);
-                Stream.Seek(PartitionOffset + LocalPosition, SeekOrigin.Begin);
-                binaryWriter.Write(value);
-                Stream.Seek(streamPosition, SeekOrigin.Begin);
-            }
-        }
-
-
-        public override byte[] Data { get => DecompressedData; protected set => DecompressedData = value; }
-
         public int CompressedSize;
-
-        public byte[] DecompressedData = null;
 
         public int DecompressedSize;
 
         public List<int> OtherHeaders = new List<int>();
 
-        public List<int> CompressedChunks = new List<int>();
-
-        public int NameOffset;
-
-        public int BlockSize;
+        public VerifierNode Verifier { get; set; }
 
         public override void Write(byte[] data)
         {
             DecompressedSize = data.Length;
-            var binaryWriter = new BinaryWriter(Stream);
+            using var localStream = new MemoryStream();
+            using var binaryWriter = new BinaryWriter(localStream);
             if (!IsDirectory())
             {
-                Stream.Seek(PartitionOffset + StartOffset, SeekOrigin.Begin);
                 if (IsCompressed())
                 {
-                    Stream.Seek(PartitionOffset + StartOffset + BlockSize, SeekOrigin.Begin);
-                    var iron = new Iron();
                     var processedBytes = 0;
-                    var chunkSize = 16384;
+                    var maxChunkSize = 16384;
                     var compressedSize = 0;
                     var chunk = new List<byte[]>();
 
-                    var ironDecompressor = new NativeLzoDecompressor();
+                    var compressor = new NativeLzoDecompressor();
                     while (processedBytes < DecompressedSize)
                     {
-                        var bytesLength = Math.Min(chunkSize, DecompressedSize - processedBytes);
+                        var bytesLength = Math.Min(maxChunkSize, DecompressedSize - processedBytes);
                         var blockData = new Span<byte>(data, processedBytes, bytesLength);
                         var nextChunkPosition = processedBytes + bytesLength;
                         var currentChunkSize = nextChunkPosition - processedBytes;
                         processedBytes = nextChunkPosition;
 
-                        byte[] dataChunk = ironDecompressor.Compress(blockData.ToArray());
+                        byte[] dataChunk = compressor.Compress(blockData.ToArray());
                         chunk.Add(dataChunk);
 
                         compressedSize += dataChunk.Length;
                     }
 
-                    Stream.Seek(PartitionOffset + StartOffset, SeekOrigin.Begin);
                     var blockSize = (chunk.Count * 4) + 4;
                     binaryWriter.Write(blockSize);
                     var lastChunkPosition = 0;
@@ -178,20 +85,36 @@ namespace BlackberrySystemPacker.Nodes
                 {
                     binaryWriter.Write(data);
                 }
+            } else
+            {
+                binaryWriter.Write(data);
             }
+
+
+            var finishedData = (localStream.ToArray());
+            var streamWriter = new BinaryWriter(Stream);
+
+            var contentLocation = PartitionOffset + StartOffset;
+            streamWriter.BaseStream.Seek(contentLocation, SeekOrigin.Begin);
+            streamWriter.Write(finishedData);
+            //WriteMetaData();    
+
+            //var metaLocation = PartitionOffset + LocalPosition;
+            //streamWriter.Seek((int)metaLocation + 16, SeekOrigin.Begin);
+            //streamWriter.Write(DecompressedSize);
+
+            //Verifier.ApplyNodeChanges(this, finishedData);
         }
 
         public override byte[] Read()
         {
-            if (Data != null && Data.Length > 0)
-            {
-                return Data;
-            }
-
             var binaryReader = new BinaryReader(Stream);
+            byte[] decompressedData = Array.Empty<byte>();
+
+            var nodeDataLocation = PartitionOffset + StartOffset;
+            Stream.Seek(nodeDataLocation, SeekOrigin.Begin);
             if (!IsDirectory())
             {
-                Stream.Seek(PartitionOffset + StartOffset, SeekOrigin.Begin);
                 if (IsCompressed())
                 {
                     var blockSize = binaryReader.ReadInt32();
@@ -223,73 +146,53 @@ namespace BlackberrySystemPacker.Nodes
                         outputData.Flush();
                     }
                     CompressedSize = blockSizes.Sum();
-                    DecompressedData = outputData.ToArray();
+                    decompressedData = outputData.ToArray();
                 }
                 else
                 {
-                    DecompressedData = binaryReader.ReadBytes(DecompressedSize);
+                    decompressedData = binaryReader.ReadBytes(DecompressedSize);
                 }
+            } else
+            {
+                decompressedData = binaryReader.ReadBytes(DecompressedSize);
             }
 
-            return DecompressedData;
+            return decompressedData;
         }
 
-
-        public string GetName()
+        public void WriteMetaData()
         {
-            Stream.Seek(PartitionOffset + LocalPosition, SeekOrigin.Begin);
-            var binaryReader = new BinaryReader(Stream);
-            binaryReader.ReadInt32();
-            var nameOffset = binaryReader.ReadInt32();
-            binaryReader.ReadInt32();
-            binaryReader.ReadInt32();
 
-            var name = new StringBuilder();
-            Stream.Seek(PartitionOffset + nameOffset, SeekOrigin.Begin);
-            for (byte b = binaryReader.ReadByte(); b != 0; b = binaryReader.ReadByte())
-            {
-                name.Append(Convert.ToChar(b));
-            }
 
-            return name.ToString();
-        }
+            // node.Mode = _fileSystemBinaryReader.ReadUInt16();
+            // var uid = _fileSystemBinaryReader.ReadUInt16();
 
-        public void SetName(string name)
-        {
-            if (string.IsNullOrEmpty(name))
-            {
-                return;
-            }
+            // node.NameOffset = _fileSystemBinaryReader.ReadInt32();
+            // node.StartOffset = _fileSystemBinaryReader.ReadInt32();
+            // node.DecompressedSize = _fileSystemBinaryReader.ReadInt32();
+            // var date = _fileSystemBinaryReader.ReadInt32();
 
-            var previousName = GetName();
-            if (previousName == name)
-            {
-                return;
-            }
-
-            Stream.Seek(PartitionOffset + LocalPosition, SeekOrigin.Begin);
-            var binaryReader = new BinaryReader(Stream);
-            binaryReader.ReadInt32();
-            var nameOffset = binaryReader.ReadInt32();
-            binaryReader.ReadInt32();
-            binaryReader.ReadInt32();
-
-            var nameBytes = Encoding.UTF8.GetBytes(name);
-            Stream.Seek(PartitionOffset + nameOffset, SeekOrigin.Begin);
-
+            // var permissions = _fileSystemBinaryReader.ReadInt32();
+            // var otherPermisssion = _fileSystemBinaryReader.ReadInt32();
+            // var somethinone = _fileSystemBinaryReader.ReadUInt16();
+            // var something = _fileSystemBinaryReader.ReadUInt16();
 
             var binaryWriter = new BinaryWriter(Stream);
-            if (nameBytes.Length > previousName.Length)
-            {
-                var difference = nameBytes.Length - previousName.Length;
-                Stream.Seek(PartitionOffset + nameOffset + previousName.Length, SeekOrigin.Begin);
-                for (var i = 0; i < difference; i++)
-                {
-                    binaryWriter.Write((byte)0);
-                }
-            }
+            var metadataPosition = PartitionOffset + LocalPosition + 4;
+            Stream.Seek(metadataPosition, SeekOrigin.Begin);
+            //binaryWriter.Write(0);
+            binaryWriter.Write(Mode);
+            //binaryWriter.Write((ushort)ExtMode);
+            binaryWriter.Write(NameOffset);
+            binaryWriter.Write(StartOffset);
+            binaryWriter.Write(DecompressedSize);
+            var date = (int)((DateTimeOffset)CreationDate).ToUnixTimeSeconds();
+            binaryWriter.Write(date);
+            binaryWriter.Write(UserId);
+            binaryWriter.Write(GroupId);
 
-            Stream.Seek(PartitionOffset + nameOffset, SeekOrigin.Begin);
+            var nameBytes = Encoding.UTF8.GetBytes(Name);
+            Stream.Seek(PartitionOffset + NameOffset, SeekOrigin.Begin);
             binaryWriter.Write(nameBytes);
             binaryWriter.Write((byte)0);
         }
@@ -311,6 +214,11 @@ namespace BlackberrySystemPacker.Nodes
         }
 
         public override FileSystemNode CreateDirectory(string name = null)
+        {
+            throw new NotImplementedException();
+        }
+
+        public override void Apply()
         {
             throw new NotImplementedException();
         }

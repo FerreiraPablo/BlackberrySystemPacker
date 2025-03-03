@@ -19,20 +19,10 @@ namespace BlackberrySystemPacker.Extractors
             _fileSystemBinaryReader = reader;
             _nodeStream = new QNX6NodeStream(_fileSystemBinaryReader.BaseStream, startOffset);
             GetFilesFromNode(_nodeStream.GetRootNode());
-
-            foreach(var node in _nodeStream.Nodes)
-            {
-                if(node == null)
-                {
-                    continue;
-                }
-                
-                node.IsUnavailable = false;
-            }
             return [.. _nodeStream.Nodes];
         }
 
-        private void GetFilesFromNode(UserSystemNode node, string path = "")
+        private void GetFilesFromNode(UserSystemNode node)
         {
             using var stream = new MemoryStream();
             _nodeStream.GetNodeContent(node, stream);
@@ -60,7 +50,7 @@ namespace BlackberrySystemPacker.Extractors
                     binaryReader.ReadByte();
                     binaryReader.ReadByte();
                     int lostAndFoundNode = binaryReader.ReadInt32();
-                    fileName = _nodeStream.GetLostAndFoundName(lostAndFoundNode);
+                    fileName = _nodeStream.GetLongFilename(lostAndFoundNode);
                 }
                 else
                 {
@@ -84,14 +74,13 @@ namespace BlackberrySystemPacker.Extractors
                 }
 
                 //childNode.Name = CleanFileName(fileName);
-                childNode.Path = FixPath(path);
-                childNode.NameOffset = nodeDefinitionOffset;
+                childNode.Path = FixPath(node.FullPath);
                 childNode.Parent = node;
                 children.Add(childNode);
 
                 if (childNode.IsDirectory())
                 {
-                    GetFilesFromNode(childNode, path + "/" + fileName);
+                    GetFilesFromNode(childNode);
                 }
                 else
                 {
@@ -102,7 +91,6 @@ namespace BlackberrySystemPacker.Extractors
                 }
             }
 
-            node.NextNodeDefinitionOffset = nodeDefinitionOffset;
             node.Children = children;
         }
 

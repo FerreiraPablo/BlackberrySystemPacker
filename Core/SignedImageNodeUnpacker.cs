@@ -1,6 +1,7 @@
 using System.Text;
 using BlackberrySystemPacker.Extractors;
 using BlackberrySystemPacker.Nodes;
+using DiscUtils;
 
 namespace BlackberrySystemPacker.Core
 {
@@ -9,26 +10,46 @@ namespace BlackberrySystemPacker.Core
         public List<FileSystemNode> GetUnpackedNodes(Stream signedFileStream)
         {
 
-            BinaryReader binaryReader = new(signedFileStream);
-            var fileInfo = PackageInfo.Get(signedFileStream);
-            fileInfo.FullSize = signedFileStream.Length;
             List<FileSystemNode> fileNodes = new List<FileSystemNode>();
+            BinaryReader binaryReader = new(signedFileStream);
+            signedFileStream.Seek(0, SeekOrigin.Begin);
+            var headerBytes = binaryReader.ReadBytes(4);
+            var magic = Encoding.UTF8.GetString(headerBytes).ToLower();
 
-            foreach (long boundaryOffset in fileInfo.BoundaryOffset)
+            if (headerBytes[0] == 0xEB && headerBytes[1] == 0x10 && headerBytes[2] == 0x90)
             {
-                if (boundaryOffset >= 0)
-                {
-                    var systemFiles = GetOperatingSystemFileNodes(binaryReader, boundaryOffset, fileInfo);
-                    fileNodes.AddRange(systemFiles);
-                }
+                fileNodes.AddRange(GetUserFileNodes(binaryReader, 0));
             }
+            else if (magic == "rimh")
+            {
+                fileNodes.AddRange(GetOperatingSystemFileNodes(binaryReader, 0));
+            }
+            else if (magic == "kdmv")
+            {
+                VirtualDisk disk = new DiscUtils.Vmdk.Disk(signedFileStream, DiscUtils.Streams.Ownership.None);
+                var systemPartition = disk.Partitions[1].Open();
+                fileNodes.AddRange(GetOperatingSystemFileNodes(new BinaryReader(systemPartition), 0));
 
-            fileNodes.AddRange(GetUserFileNodes(binaryReader, fileInfo.UserPartition, fileInfo));
+                
+                var userPartition = disk.Partitions[3].Open();
+                fileNodes.AddRange(GetUserFileNodes(new BinaryReader(userPartition), 0));
+            }
+            else
+            {
+                var fileInfo = PackedImageInfo.Get(signedFileStream);
+                fileInfo.FullSize = signedFileStream.Length;
+                
+                var systemPartition = fileInfo.Partitions.FirstOrDefault(x => x.Type == 8);
+                fileNodes.AddRange(GetOperatingSystemFileNodes(binaryReader, systemPartition.Offset));
+
+                var userPartition = fileInfo.Partitions.FirstOrDefault(x => x.Type == 6);
+                fileNodes.AddRange(GetUserFileNodes(binaryReader, userPartition.Offset));
+            }
 
             return fileNodes.Where(x => x != null && !string.IsNullOrEmpty(x.FullPath)).ToList();
         }
 
-        private List<FileSystemNode> GetOperatingSystemFileNodes(BinaryReader binaryReader, long startOffset, PackageInfo fileInfo)
+        private List<FileSystemNode> GetOperatingSystemFileNodes(BinaryReader binaryReader, long startOffset)
         {
 
             if (ValidateFileSystem(binaryReader, startOffset))
@@ -41,19 +62,11 @@ namespace BlackberrySystemPacker.Core
             return new List<FileSystemNode>();
         }
 
-        private List<FileSystemNode> GetUserFileNodes(BinaryReader binaryReader, long startOffset, PackageInfo fileInfo)
+        private List<FileSystemNode> GetUserFileNodes(BinaryReader binaryReader, long startOffset)
         {
             var nodeList = new List<FileSystemNode>();
-
-            var hasSignature = ValidateUserFileSystem(binaryReader, startOffset, fileInfo);
-            if (!hasSignature)
-            {
-                return nodeList;
-            }
-
-
             var userSystemExtractor = new UserSystemExtractor();
-            nodeList.AddRange(userSystemExtractor.GetNodes(binaryReader, fileInfo.UserPartition));
+            nodeList.AddRange(userSystemExtractor.GetNodes(binaryReader, startOffset));
             return nodeList;
         }
 
@@ -67,64 +80,6 @@ namespace BlackberrySystemPacker.Core
                 || header[0] == 102 && header[1] == 115 && header[2] == 45 && header[3] == 114
                 && header[4] == 97 && header[5] == 100 && header[6] == 105 && header[7] == 111
                 || header[4128] == 114 && header[4129] == 45 && header[4130] == 99 && header[4131] == 45 && header[4132] == 102 && header[4133] == 45 && header[4134] == 115 && Encoding.ASCII.GetString(header, 8, 8).Trim() == "fs-os";
-        }
-
-        private bool ValidateUserFileSystem(BinaryReader binaryReader, long startOffset, PackageInfo fileInfo)
-        {
-            binaryReader.BaseStream.Seek(fileInfo.QCFMDebrickOSStart, SeekOrigin.Begin);
-            byte[] header = binaryReader.ReadBytes(8000);
-            if (binaryReader.ReadByte() == 235 && binaryReader.ReadByte() == 16 && binaryReader.ReadByte() == 144 && binaryReader.ReadByte() == 0 && binaryReader.ReadByte() == 0)
-            {
-                binaryReader.BaseStream.Seek(8187L, SeekOrigin.Current);
-                if (binaryReader.ReadByte() == 221 && binaryReader.ReadByte() == 238 && binaryReader.ReadByte() == 230 && binaryReader.ReadByte() == 151)
-                {
-                    fileInfo.UserPartition = binaryReader.BaseStream.Position - 8196;
-                    return true;
-                }
-            }
-
-            long offset = 0L;
-            binaryReader.BaseStream.Seek(fileInfo.UserPartition, SeekOrigin.Begin);
-            while (fileInfo.UserPartition + 65536 * offset < binaryReader.BaseStream.Length - 200000)
-            {
-                try
-                {
-                    if (binaryReader.BaseStream.Position + 100000 >= fileInfo.FullSize)
-                    {
-                        return false;
-                    }
-                    binaryReader.BaseStream.Seek(fileInfo.UserPartition + 65536 * offset++, SeekOrigin.Begin);
-                    if (binaryReader.ReadByte() == 235 && binaryReader.ReadByte() == 16 && binaryReader.ReadByte() == 144 && binaryReader.ReadByte() == 0 && binaryReader.ReadByte() == 0)
-                    {
-                        binaryReader.BaseStream.Seek(8187L, SeekOrigin.Current);
-                        if (binaryReader.ReadByte() == 221 && binaryReader.ReadByte() == 238 && binaryReader.ReadByte() == 230 && binaryReader.ReadByte() == 151)
-                        {
-                            fileInfo.UserPartition = binaryReader.BaseStream.Position - 8196;
-                            return true;
-                        }
-                    }
-                }
-                catch
-                {
-                }
-            }
-
-            binaryReader.BaseStream.Seek(fileInfo.QCFMDebrickOSStart, SeekOrigin.Begin);
-
-            while (binaryReader.BaseStream.Position + 100000 <= fileInfo.FullSize)
-            {
-                if (binaryReader.ReadByte() == 235 && binaryReader.ReadByte() == 16 && binaryReader.ReadByte() == 144 && binaryReader.ReadByte() == 0 && binaryReader.ReadByte() == 0)
-                {
-                    binaryReader.BaseStream.Seek(8187L, SeekOrigin.Current);
-                    if (binaryReader.ReadByte() == 221 && binaryReader.ReadByte() == 238 && binaryReader.ReadByte() == 230 && binaryReader.ReadByte() == 151)
-                    {
-                        fileInfo.UserPartition = binaryReader.BaseStream.Position - 8196;
-                        return true;
-                    }
-                }
-            }
-
-            return false;
         }
     }
 }

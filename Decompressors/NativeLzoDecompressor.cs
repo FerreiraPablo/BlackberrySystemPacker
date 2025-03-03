@@ -19,7 +19,7 @@ namespace BlackberrySystemPacker.Decompressors
 
             var processInfo = new ProcessStartInfo()
             {
-                FileName = @"C:\bin\lzop.exe",
+                FileName = @"lzop",
                 Arguments = $"-9 {Path.GetFullPath(temporaryFile)} -o {Path.GetFullPath(temporaryOutputFile)} -f -f --quiet --no-mode --no-name -P"
             };
 
@@ -97,7 +97,7 @@ namespace BlackberrySystemPacker.Decompressors
 
             var processInfo = new ProcessStartInfo()
             {
-                FileName = @"C:\bin\lzop.exe",
+                FileName = @"lzop",
                 Arguments = $"-d {Path.GetFullPath(temporaryFile)} -o {Path.GetFullPath(temporaryOutputFile)} -f -f --quiet --no-mode --no-name -P"
             };
 

@@ -1,0 +1,47 @@
+name: .NET Build
+
+on:
+    push:
+        branches: [ main ]
+    pull_request:
+        branches: [ main ]
+    workflow_dispatch:
+
+jobs:
+    build:
+        runs-on: ubuntu-latest
+
+        steps:
+            - uses: actions/checkout@v3
+            
+            - name: Setup .NET
+              uses: actions/setup-dotnet@v3
+              with:
+                  dotnet-version: 8.0.x
+                  
+            - name: Restore dependencies
+              run: dotnet restore
+              
+            - name: Build
+              run: dotnet build --no-restore --configuration Release
+              
+            - name: Test
+              run: dotnet test --no-build --verbosity normal --configuration Release
+              
+            - name: Publish Windows x64
+              run: dotnet publish --no-restore --configuration Release -r win-x64 -p:PublishSingleFile=true -p:PublishTrimmed=true  -p:DebugType=None -p:DebugSymbols=false --self-contained true -o ./publish/win-x64
+              
+            - name: Publish Linux x64
+              run: dotnet publish --no-restore --configuration Release -r linux-x64 -p:PublishSingleFile=true -p:PublishTrimmed=true -p:DebugType=None -p:DebugSymbols=false --self-contained true -o ./publish/linux-x64
+              
+            - name: Upload Windows Artifact
+              uses: actions/upload-artifact@v4
+              with:
+                  name: win-x64-build
+                  path: ./publish/win-x64
+                  
+            - name: Upload Linux Artifact
+              uses: actions/upload-artifact@v4
+              with:
+                  name: linux-x64-build
+                  path: ./publish/linux-x64

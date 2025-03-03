@@ -1,5 +1,4 @@
 using BlackberrySystemPacker.Nodes;
-using System.Reflection;
 
 namespace BlackberrySystemPacker.Helpers.QNX6
 {
@@ -306,7 +305,7 @@ namespace BlackberrySystemPacker.Helpers.QNX6
 
             return new UserSystemNode()
             {
-                Size = NodeCount * 128,
+                Size = Nodes.Size,
                 Sectors = Nodes.GetAsInt(),
                 Levels = Nodes.Levels
             };
