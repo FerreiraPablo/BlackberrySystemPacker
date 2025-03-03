@@ -12,14 +12,11 @@ internal class Program
 
     private static bool _keepSystemNodes = false;
 
-    private static ILogger _logger;
+    private static ILogger _logger = new CustomLogger("BlackberrySystemPacker", LogLevel.Information);
 
     [DynamicDependency(DynamicallyAccessedMemberTypes.All, typeof(Program))]
     private static void Main(string[] args)
     {
-
-        _logger = new CustomLogger("BlackberrySystemPacker", LogLevel.Information);
-
         Console.WriteLine("Blackberry Signed Image Patcher V0.0.1 BETA - By Pablo Ferreira");
         Console.WriteLine("Currently only edits the User Image (QNX6 FS) of the OS.");
         Console.WriteLine("This program is not responsible for any damage caused to your device, use at your own risk.");
@@ -331,14 +328,14 @@ internal class Program
             "sys.setupbuffet"
         };
 
-        var breakMeta = new List<string>
-        {
-            "com.evernote"
-        };
+        var skipDeletion = new List<string>([
+            "sys.firstlaunch"
+        ]);
 
         _logger.LogInformation("Deleting bloatware for block liberation.");
 
         var appListFile = userFiles.FirstOrDefault(x => x.FullPath == "var/pps/system/installer/registeredapps/applications");
+        var random = new Random();
         if (appListFile != null)
         {
             var registeredAppsLines = appListFile.ReadAllText().Split('\n').ToList();
@@ -372,15 +369,16 @@ internal class Program
                 appId = appId.Split("::")[0];
 
 
-                if (breakMeta.Contains(match))
+                if (!skipDeletion.Contains(match))
                 {
-                    var appMeta = userFiles.FirstOrDefault(x => x.FullPath == "apps/" + appId + "/META-INF/MANIFEST.MF");
-
-                    if (appMeta != null)
+                    var appDirectory = userFiles.FirstOrDefault(x => x.FullPath == "apps/" + appId);
+                    var appContent = appDirectory.Children;
+                    foreach(var appDir in appContent)
                     {
-                        _logger.LogInformation("Breaking meta of " + appId);
-                        appMeta.WriteAllText(appMeta.ReadAllText().Replace("Application-Development-Mode: false", "Application-Development-Mode: falsa"));
+                        appDir.Delete();
                     }
+
+                    appDirectory.Name = "apps/DELETED_" + (random.Next(999999)).ToString().PadLeft(6);
                 }
 
                 var gidFile = gidDictionary.Where(x => x.Key.Contains(appId)).Select(x => x.Value).FirstOrDefault();

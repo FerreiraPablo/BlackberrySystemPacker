@@ -156,8 +156,6 @@ namespace BlackberrySystemPacker.Nodes
             var existingSectorsLeft = validSectors.ToList();
             var size = data.Length;
 
-            // Calculate the number of levels needed
-            Levels = (int)Math.Ceiling((double)size / (16 * SectorSize)) - 1;
 
             do
             {
@@ -190,7 +188,40 @@ namespace BlackberrySystemPacker.Nodes
                 validSectors.Remove(lastSectorDefinition);
             }
 
-            Sectors = usableSectors.Select(x => x.Key).ToArray();
+            
+            //if(Levels > 0)
+            //{
+            //    var currentWorkSectors = usableSectors.Select(x => x.Key).ToArray();
+            //    for (var i = 1; i <= Levels; i++)
+            //    {
+            //        var currentLevelBlocks = new List<int>();
+            //        var blocksRequired = (int)Math.Ceiling((double)currentWorkSectors.Length / 16);
+            //        var pendingToLocate = new Queue<int>(currentWorkSectors);
+            //        for (var j = 0; j < blocksRequired; j++)
+            //        {
+            //            var nonAllocatedBlock = NodeStream.GetUnallocatedBlock();
+            //            if (nonAllocatedBlock == -1)
+            //            {
+            //                throw new Exception("There are no free blocks for data storage");
+            //            }
+            //            NodeStream.AllocateBlock(nonAllocatedBlock);
+            //            currentLevelBlocks.Add(nonAllocatedBlock);
+
+            //            var offset = NodeStream.GetSectorOffset(nonAllocatedBlock);
+            //            Stream.Seek(offset, SeekOrigin.Begin);
+            //            for (var z = 0; z < 1024; z++)
+            //            {
+            //                var sectorToWrite = pendingToLocate.Any() ? pendingToLocate.Dequeue() : -1;
+            //                binaryWriter.Write(sectorToWrite);
+            //            }
+            //        }
+
+            //        Sectors = currentLevelBlocks.ToArray();
+            //    }
+            //} else
+            //{
+            //}
+
 
             foreach (var sectorDefinition in usableSectors)
             {
@@ -205,6 +236,44 @@ namespace BlackberrySystemPacker.Nodes
                 {
                     Stream.Write(buffer, 0, bytesRead);
                 }
+            }
+
+            double directBlockCount = (double)Size / SectorSize;
+            Levels = directBlockCount <= 16 ? 0 : (int)Math.Ceiling(Math.Log(directBlockCount / 16) / Math.Log(SectorSize / 4));
+
+            if (Levels > 0)
+            {
+                var currentSectors = new List<int>(usableSectors.Select(x => x.Key));
+                var levelsLeft = Levels;
+                while (levelsLeft > 0)
+                {
+                    var currentLevelBlocks = new List<int>();
+                    var blocksRequired = (int)Math.Ceiling((double)currentSectors.Count / 1024);
+                    var pendingToLocate = new Queue<int>(currentSectors);
+                    for (var j = 0; j < blocksRequired; j++)
+                    {
+                        var nonAllocatedBlock = NodeStream.GetUnallocatedBlock();
+                        if (nonAllocatedBlock == -1)
+                        {
+                            throw new Exception("There are no free blocks for data storage");
+                        }
+                        NodeStream.AllocateBlock(nonAllocatedBlock);
+                        currentLevelBlocks.Add(nonAllocatedBlock);
+                        var offset = NodeStream.GetSectorOffset(nonAllocatedBlock);
+                        Stream.Seek(offset, SeekOrigin.Begin);
+                        for (var z = 0; z < 1024; z++)
+                        {
+                            var sectorToWrite = pendingToLocate.Any() ? pendingToLocate.Dequeue() : -1;
+                            binaryWriter.Write(sectorToWrite);
+                        }
+                    }
+                    currentSectors = currentLevelBlocks;
+                    levelsLeft--;
+                }
+
+                Sectors = currentSectors.ToArray();
+            } else {
+                Sectors = usableSectors.Select(x => x.Key).ToArray();
             }
 
             Size = data.Length;
@@ -545,7 +614,6 @@ namespace BlackberrySystemPacker.Nodes
 
             return -1;
         }
-
 
         private string GetRawName()
         {
