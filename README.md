@@ -5,7 +5,11 @@ A .NET 8 Console application for patching signed Blackberry firmware images.
 
 ## Overview
 
-This tool allows you to modify signed Blackberry firmware images without ignoring their signature validation. It provides a command-line interface for common patching operations on Blackberry system files.
+This tool allows you to modify signed Blackberry firmware images without ignoring their signature validation. It provides a command-line interface for common patching operations on Blackberry system files, a proof of concept for the modification of images with QNX6 filesystems.
+
+Developed by Pablo Ferreira for educational purposes, this tool is not affiliated with Blackberry or Research In Motion.
+
+Source code published for the first time on 3/3/2025
 
 ## Features
 - Patch signed Blackberry firmware images
@@ -66,4 +70,4 @@ bbsignedpatcher HELP
 
 ## Disclaimer
 
-This tool is provided for educational and development purposes only. Use it responsibly and respect intellectual property rights.
+This tool is provided for educational and development purposes only, and is completely unrelated to Research In Motion or Blackberry as a brand. Use it responsibly and respect intellectual property rights.

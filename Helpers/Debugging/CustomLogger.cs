@@ -33,9 +33,29 @@ namespace BlackberrySystemPacker.Helpers.Debugging
         {
             if (!IsEnabled(logLevel))
             {
-                return;
+            return;
             }
-            Console.WriteLine($"{logLevel}: {formatter(state, exception)}");
+            
+            ConsoleColor originalColor = Console.ForegroundColor;
+            
+            // Set color based on log level
+            Console.ForegroundColor = logLevel switch
+            {
+            LogLevel.Trace => ConsoleColor.Gray,
+            LogLevel.Debug => ConsoleColor.Blue,
+            LogLevel.Information => ConsoleColor.Green,
+            LogLevel.Warning => ConsoleColor.Yellow,
+            LogLevel.Error => ConsoleColor.Red,
+            LogLevel.Critical => ConsoleColor.DarkRed,
+            _ => originalColor
+            };
+            
+            // Write just the log level with color
+            Console.Write($"{logLevel}: ");
+            
+            // Restore original color, then write the message
+            Console.ForegroundColor = originalColor;
+            Console.WriteLine(formatter(state, exception));
         }
     }
 }

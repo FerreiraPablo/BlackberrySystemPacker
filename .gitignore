@@ -320,6 +320,8 @@ StyleCopReport.xml
 *_wpftmp.csproj
 *.tlog
 
+publish/
+
 # Chutzpah Test files
 
 # Visual C++ cache files

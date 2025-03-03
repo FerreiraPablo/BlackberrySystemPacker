@@ -22,6 +22,8 @@ internal class Program
 
         Console.WriteLine("Blackberry Signed Image Patcher V0.0.1 BETA - By Pablo Ferreira");
         Console.WriteLine("Currently only edits the User Image (QNX6 FS) of the OS.");
+        Console.WriteLine("This program is not responsible for any damage caused to your device, use at your own risk.");
+        Console.WriteLine("");
 
 
         var options = GetOptions(args);
@@ -147,7 +149,7 @@ internal class Program
             {
                 if (workspaceDir == null)
                 {
-                    Console.WriteLine("Workspace directory is required for editing.");
+                    _logger.LogError("Workspace directory is required for editing.");
                     validArguments = false;
                 }
                 else if (!Directory.Exists(workspaceDir))
@@ -159,7 +161,7 @@ internal class Program
 
         if (validArguments == false)
         {
-            procedure = "HELP";
+            return;
         }
 
         var modifiedFile = "";
@@ -342,7 +344,7 @@ internal class Program
             var registeredAppsLines = appListFile.ReadAllText().Split('\n').ToList();
             var filesToEdit = new List<FileSystemNode>();
             filesToEdit.AddRange(userFiles.Where(x => x.FullPath.StartsWith("var/etc/default_order")));
-            filesToEdit.AddRange(userFiles.Where(x => x.FullPath == "var/pps/system/navigator/invokes/invoke"));
+            filesToEdit.AddRange(userFiles.Where(x => x.FullPath.StartsWith("var/pps/system/navigator/invokes/invoke")));
             filesToEdit.AddRange(userFiles.Where(x => x.FullPath.StartsWith("var/pps/system/installer/appdetails/applications")));
             filesToEdit.Add(userFiles.FirstOrDefault(x => x.FullPath == "var/pps/system/navigator/applications/applications"));
             filesToEdit.Add(userFiles.FirstOrDefault(x => x.FullPath == "var/pps/system/navigator/urls"));
