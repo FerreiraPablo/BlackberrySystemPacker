@@ -54,6 +54,9 @@ jobs:
                       ./publish/win-x64/*
                       ./publish/linux-x64/*
                   token: ${{ secrets.GITHUB_TOKEN }}
-                  body: ${{ github.ref }}
+                  name: concat('Release ', github.ref_name)
+                  body: ${{ github.event.head_commit.message }}
+                  fail_on_unmatched_files: true
                   draft: false
-                  prerelease: false
+                  tag_name: ${{ github.ref_name }}
+                  prerelease: contains(github.ref, 'beta')
