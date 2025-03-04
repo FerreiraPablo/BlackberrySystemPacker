@@ -52,13 +52,13 @@ jobs:
 
         steps:
             - name: Download Windows Artifact
-              uses: actions/download-artifact@v3
+              uses: actions/download-artifact@v4
               with:
                   name: win-x64-build
                   path: ./publish/win-x64
 
             - name: Download Linux Artifact
-              uses: actions/download-artifact@v3
+              uses: actions/download-artifact@v4
               with:
                   name: linux-x64-build
                   path: ./publish/linux-x64
