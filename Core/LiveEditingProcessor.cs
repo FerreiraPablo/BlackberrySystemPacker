@@ -74,6 +74,8 @@ namespace BlackberrySystemPacker.Core
         public async Task Start()
         {
             _logger.LogInformation("Started live editing processor.");
+            _logger.LogInformation($"You can go to the workspace in {_sourceDirectory} and create, delete or edit any file.");
+            _logger.LogInformation("Write 'help' or enter for additional commands.");
             _logger.LogInformation("Write 'quit' then [ENTER] to stop the processor, and end the live editing session...");
 
             await Task.WhenAll(
@@ -88,14 +90,26 @@ namespace BlackberrySystemPacker.Core
                         continue;
                     }
 
-                    if (input == "quit")
+
+                    var parts = input.Split(" ");
+                    var commandAlias = parts[0].ToLower();
+
+                    if (commandAlias == "quit")
                     {
                         break;
                     }
 
-                    var parts = input.Split(" ");
-                    var command = parts[0].ToLower();
-                    var existingCommand = commands.FirstOrDefault(x => x.Aliases.Contains(command));
+                    if(commandAlias == "help")
+                    {
+                        _logger.LogInformation("Available commands:");
+                        foreach (var commandDef in commands)
+                        {
+                            _logger.LogInformation($"{commandDef.Aliases[0]}: {commandDef.Description}");
+                        }
+                        continue;
+                    }
+
+                    var existingCommand = commands.FirstOrDefault(x => x.Aliases.Contains(commandAlias));
                     if (existingCommand != null)
                     {
                         try {
@@ -107,7 +121,7 @@ namespace BlackberrySystemPacker.Core
                     }
                     else
                     {
-                        _logger.LogError($"Invalid command: {command}");
+                        _logger.LogError($"Invalid command: {commandAlias}");
                     }
                 }
                 Console.WriteLine("");

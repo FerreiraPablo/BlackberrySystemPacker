@@ -12,7 +12,7 @@ namespace BlackberrySystemPacker.Helpers.EditingCommands
 {
     public class CreateDirectoryCommand : EditorCommand
     {
-        new string Description { get; set; } = "Create a directory.";
+        new string Description { get; set; } = "Creates a directory.";
 
         public CreateDirectoryCommand() : base("mkdir", "createdirectory")
         {

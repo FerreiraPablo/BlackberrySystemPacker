@@ -12,7 +12,7 @@ namespace BlackberrySystemPacker.Helpers.EditingCommands
 {
     public class PushCommand : EditorCommand
     {
-        new string Description { get; set; } = "Push a file to the system.";
+        new string Description { get; set; } = "Push a file from your system to the image.";
 
         public PushCommand() : base("push", "pushfile")
         {

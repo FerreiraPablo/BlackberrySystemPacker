@@ -12,7 +12,7 @@ namespace BlackberrySystemPacker.Helpers.EditingCommands
 {
     public class RemoveLineCommand : EditorCommand
     {
-        new string Description { get; set; } = "Remove a line from a file.";
+        new string Description { get; set; } = "Removes an specific line from a file.";
 
         public RemoveLineCommand() : base("rmline", "removeline")
         {

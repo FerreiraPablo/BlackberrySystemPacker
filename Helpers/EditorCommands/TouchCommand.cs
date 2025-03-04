@@ -13,7 +13,7 @@ namespace BlackberrySystemPacker.Helpers.EditingCommands
     public class TouchCommand : EditorCommand
     {
 
-        new string Description { get; set; } = "Create a file.";
+        new string Description { get; set; } = "Creates a file.";
 
         public TouchCommand() : base("createfile", "touch")
         {
