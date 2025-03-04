@@ -199,6 +199,10 @@ internal class Program
                 Console.WriteLine("");
                 Console.WriteLine("--writeinput: \nTo write all changes on top of the input os file, instead of creating a new one on the output directory or using the outputFile.");
                 Console.WriteLine("");
+                Console.WriteLine("--skipworkspace: \nIt will use an existing workspace directory on edit mode. If the workspace is empty the application will start deleting ALL FILES in the partition interpreting this is an expected change on the workspace, DO IT AT YOUR OWN RISK.");
+                Console.WriteLine("");
+                Console.WriteLine("--systemnodes: \nIt will include not R/W nodes into your workspace (Editing this files can most times break the system, and serves no purpose, enable this if you know what you're doing).");
+                Console.WriteLine("");
                 Console.WriteLine("");
                 Console.WriteLine("Examples:");
                 Console.WriteLine($"{executableFile} AUTOPATCH --os <path_to_os_file> --output <output_directory>");
@@ -407,7 +411,6 @@ internal class Program
 
         var navigatorConfigFile = userFiles.FirstOrDefault(x => x.FullPath == "var/pps/system/navigator/config");
         navigatorConfigFile.WriteAllText(navigatorConfigFile.ReadAllText().Replace("autorun::1", "autorun::0").Replace(",\"com.amazon\"", ""));
-
 
         var appConfig = userFiles.FirstOrDefault(x => x.FullPath == "var/pps/system/appconfig/sys.settings");
         appConfig.WriteAllText(appConfig.ReadAllText().Replace("false", "true"));
