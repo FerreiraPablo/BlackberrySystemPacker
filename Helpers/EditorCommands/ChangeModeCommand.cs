@@ -12,7 +12,7 @@ namespace BlackberrySystemPacker.Helpers.EditingCommands
 {
     public class ChangeModeCommand : EditorCommand
     {
-        new string Description { get; set; } = "Change the group of a file or directory.";
+        new string Description { get; set; } = "Change the node mode of a file or directory.";
 
         public ChangeModeCommand() : base("mode", "setmode")
         {
