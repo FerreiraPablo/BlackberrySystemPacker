@@ -64,7 +64,7 @@ internal class Program
                     var newOptions = JsonConvert.DeserializeObject<Dictionary<string, string>>(configFile);
                     foreach (var newOption in newOptions)
                     {
-                        options[newOption.Key] = newOption.Value;
+                        options[newOption.Key.ToLower()] = newOption.Value;
                     }
                 }
                 catch (Exception e)
@@ -377,7 +377,7 @@ internal class Program
                 {
                     var appDirectory = userFiles.FirstOrDefault(x => x.FullPath == "apps/" + appId);
                     var appContent = appDirectory.Children;
-                    foreach(var appDir in appContent)
+                    foreach (var appDir in appContent)
                     {
                         appDir.Delete();
                     }
@@ -408,6 +408,8 @@ internal class Program
             appListFile.WriteAllText(string.Join("\n", registeredAppsLines));
 
         }
+
+
 
         var navigatorConfigFile = userFiles.FirstOrDefault(x => x.FullPath == "var/pps/system/navigator/config");
         navigatorConfigFile.WriteAllText(navigatorConfigFile.ReadAllText().Replace("autorun::1", "autorun::0").Replace(",\"com.amazon\"", ""));
@@ -443,7 +445,7 @@ internal class Program
         var files = extractor.GetUnpackedNodes(modifiedPackage);
         var editableFiles = files.Where(x => !x.Name.Contains("\0")).ToList();
 
-        if(!_keepSystemNodes)
+        if (!_keepSystemNodes)
         {
             editableFiles = editableFiles.Where(x => x.IsUserNode).ToList();
         }
@@ -452,7 +454,7 @@ internal class Program
         _logger.LogInformation("Unpacked, operation took " + Math.Round(stopWatch.Elapsed.TotalSeconds, 1) + "s");
         var editingProcessor = new LiveEditingProcessor(editableFiles, workspaceDir, _logger);
 
-        if(createWorkspace)
+        if (createWorkspace)
         {
             editingProcessor.Build();
         }
