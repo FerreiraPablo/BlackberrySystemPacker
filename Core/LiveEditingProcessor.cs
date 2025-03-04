@@ -287,19 +287,19 @@ namespace BlackberrySystemPacker.Core
                     break;
                 case LiveEditingTaskType.SetPermissions:
                     requiredFile.SetPermissions(currentTask.Permissions);
-                    requiredFile.Write(requiredFile.Read());
+                    requiredFile.Apply();
                     break;
                 case LiveEditingTaskType.SetUser:
                     requiredFile.UserId = currentTask.UserId;
-                    requiredFile.Write(requiredFile.Read());
+                    requiredFile.Apply();
                     break;
                 case LiveEditingTaskType.SetGroup:
                     requiredFile.GroupId = currentTask.GroupId;
-                    requiredFile.Write(requiredFile.Read());
+                    requiredFile.Apply();
                     break;
                 case LiveEditingTaskType.SetMode:
                     requiredFile.Mode = currentTask.Mode;
-                    requiredFile.Write(requiredFile.Read());
+                    requiredFile.Apply();
                     break;
                 case LiveEditingTaskType.ChangeParent:
                     var parent = _workingNodes.FirstOrDefault(x => x.FullPath == currentTask.ParentRelativePath);
@@ -321,7 +321,7 @@ namespace BlackberrySystemPacker.Core
                     else
                     {
                         requiredFile.Name = currentTask.Name;
-                        requiredFile.Write(requiredFile.Read());
+                        requiredFile.Apply();
                     }
                     break;
             }
