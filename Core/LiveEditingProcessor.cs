@@ -2,6 +2,7 @@
 using BlackberrySystemPacker.Nodes;
 using Microsoft.Extensions.Logging;
 using System.Collections.Concurrent;
+using System.IO;
 
 namespace BlackberrySystemPacker.Core
 {
@@ -67,76 +68,41 @@ namespace BlackberrySystemPacker.Core
         private string _sourceDirectory;
         private readonly ILogger _logger;
 
-        public LiveEditingProcessor(List<FileSystemNode> workingNodes, string sourceDirectory, ILogger logger)
+        public LiveEditingProcessor(List<FileSystemNode> workingNodes, ILogger logger, string sourceDirectory = null)
         {
             _workingNodes = workingNodes;
             _sourceDirectory = sourceDirectory;
             _logger = logger;
-        }
-
-        public async Task Start()
-        {
-            _logger.LogInformation("Started live editing processor.");
-            _logger.LogInformation($"You can go to the workspace in {_sourceDirectory} and create, delete or edit any file.");
-            _logger.LogInformation("Write 'help' or enter for additional commands.");
-            _logger.LogInformation("Write 'quit' then [ENTER] to stop the processor, and end the live editing session...");
-
             foreach (var commandDef in commands)
             {
                 commandDef.Logger = _logger;
             }
+        }
+
+        public async Task Start()
+        {
+            if(!string.IsNullOrEmpty(_sourceDirectory))
+            {
+                _logger.LogInformation("Started live editing processor.");
+                _logger.LogInformation($"You can go to the workspace in {_sourceDirectory} and create, delete or edit any file.");
+                _logger.LogInformation("Write 'help' or enter for additional commands.");
+                _logger.LogInformation("Write 'quit' then [ENTER] to stop the processor, and end the live editing session...");
+            }
+
 
             await Task.WhenAll(
             ApplyChanges(),
             Task.Factory.StartNew(() =>
             {
-                while (true)
+                while (KeepRunning)
                 {
                     var input = Console.ReadLine();
-                    if (string.IsNullOrWhiteSpace(input))
-                    {
-                        continue;
-                    }
-
-
-                    var parts = input.Split(" ");
-                    var commandAlias = parts[0].ToLower();
-
-                    if (commandAlias == "quit")
-                    {
-                        break;
-                    }
-
-                    if(commandAlias == "help")
-                    {
-                        _logger.LogInformation("Available commands:");
-                        foreach (var commandDef in commands)
-                        {
-                            _logger.LogInformation($"{commandDef.Aliases[0]}: {commandDef.Description}");
-                        }
-                        continue;
-                    }
-
-                    var existingCommand = commands.FirstOrDefault(x => x.Aliases.Contains(commandAlias));
                     Pause = true;
-                    if (existingCommand != null)
-                    {
-                        try {
-                            existingCommand.Execute(_tasks, _workingNodes, parts);
-                        } catch(Exception e)
-                        {
-                            _logger.LogError(e.Message);
-                        }
-                    }
-                    else
-                    {
-                        _logger.LogError($"Invalid command: {commandAlias}");
-                    }
+                    RunCommand(input);
                     Pause = false;
                 }
                 Console.WriteLine("");
                 _logger.LogInformation("Stopping live editing processor.");
-                KeepRunning = false;
             }),
             Task.Factory.StartNew(() =>
             {
@@ -145,6 +111,71 @@ namespace BlackberrySystemPacker.Core
                     RunTasks();
                 }
             }));
+        }
+
+        public void RunScript(string script)
+        {
+            var lines = script.Split("\n");
+            foreach (var line in lines)
+            {
+                if(string.IsNullOrWhiteSpace(line))
+                {
+                    continue;
+                }
+                _logger.LogInformation($"Running '{line}'");
+                RunCommand(line.Trim());
+                while(_tasks.Any())
+                {
+                    RunTasks();
+                }
+            }
+            KeepRunning = false;
+        }
+
+        public void RunCommand(string command)
+        {
+            if(string.IsNullOrWhiteSpace(command))
+            {
+                return;
+            }
+
+            command = string.Join(' ', command.Split("\\"));
+            var parts = command.Split(" ");
+            var commandAlias = parts[0].ToLower();
+
+            if (commandAlias == "quit")
+            {
+                KeepRunning = false;
+                return;
+            }
+
+            if (commandAlias == "help")
+            {
+                _logger.LogInformation("Available commands:");
+                foreach (var commandDef in commands)
+                {
+                    _logger.LogInformation($"{commandDef.Aliases[0]}: {commandDef.Description}");
+                }
+                return;
+            }
+
+            var existingCommand = commands.FirstOrDefault(x => x.Aliases.Contains(commandAlias));
+            
+            if (existingCommand != null)
+            {
+                try
+                {
+                    existingCommand.Execute(_tasks, _workingNodes, parts);
+                }
+                catch (Exception e)
+                {
+                    _logger.LogError(e.Message);
+                }
+            }
+            else
+            {
+                _logger.LogError($"Invalid command: {commandAlias}");
+            }
         }
 
         private FileSystemNode GetExistingParent(string path)
@@ -165,7 +196,6 @@ namespace BlackberrySystemPacker.Core
             return null;
         }
 
-        
         public void Build()
         {
             _logger.LogInformation("Building workspace, creating files that don't exist.");
@@ -213,7 +243,6 @@ namespace BlackberrySystemPacker.Core
             stopWatch.Stop();
             _logger.LogInformation($"Created workspace. {Math.Round(stopWatch.Elapsed.TotalSeconds, 1)}s");
         }
-
 
         private void RunTasks()
         {
@@ -332,6 +361,10 @@ namespace BlackberrySystemPacker.Core
 
         private async Task ApplyChanges()
         {
+            if(_sourceDirectory == null)
+            {
+                return;
+            }
 
             var dirSeparator = Path.DirectorySeparatorChar;
             var files = _workingNodes.Select(x => Path.Combine(_sourceDirectory, x.FullPath.Replace('/', dirSeparator).Replace('\\', dirSeparator))).ToList(); /// Directory.GetFileSystemEntries(_sourceDirectory, "*", SearchOption.AllDirectories);

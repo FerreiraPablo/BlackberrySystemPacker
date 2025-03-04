@@ -1,6 +1,7 @@
 ﻿using BlackberrySystemPacker.Core;
 using BlackberrySystemPacker.Helpers.Autoloaders;
 using BlackberrySystemPacker.Helpers.Debugging;
+using BlackberrySystemPacker.Helpers.Texts;
 using BlackberrySystemPacker.Nodes;
 using Microsoft.Extensions.Logging;
 using Newtonsoft.Json;
@@ -20,8 +21,6 @@ internal class Program
         Console.WriteLine("Currently only edits the User Image (QNX6 FS) of the OS.");
         Console.WriteLine("This program is not responsible for any damage caused to your device, use at your own risk.");
         Console.WriteLine("");
-
-
         var options = GetOptions(args);
         var procedure = args.Length > 0 ? args[0].ToUpper() : null;
         if (procedure != null)
@@ -91,6 +90,21 @@ internal class Program
         var writeInput = options.GetValueOrDefault("writeinput") ?? options.GetValueOrDefault("wi");
         var systemNodes = options.GetValueOrDefault("systemnodes") ?? options.GetValueOrDefault("sn");
         var skipWorkspaceBuild = options.GetValueOrDefault("skipworkspace") ?? options.GetValueOrDefault("sw");
+        var script = options.GetValueOrDefault("script") ?? options.GetValueOrDefault("s");
+        var patchingScript = PatchingScripts.ImageCleanupScript;
+        if (script != null)
+        {
+            if (File.Exists(script))
+            {
+                patchingScript = File.ReadAllText(script);
+            }
+            else
+            {
+                _logger.LogError("Script file does not exist.");
+                return;
+            }
+        }
+
         if (writeInput != null)
         {
             outputFile = signedFile;
@@ -167,7 +181,7 @@ internal class Program
         switch (procedure)
         {
             case "AUTOPATCH":
-                modifiedFile = Patch(signedFile, outputFile);
+                modifiedFile = Patch(patchingScript, signedFile, outputFile);
                 break;
             case "EDIT":
                 modifiedFile = Export(workspaceDir, skipWorkspaceBuild == null, signedFile, outputFile);
@@ -202,6 +216,8 @@ internal class Program
                 Console.WriteLine("--skipworkspace: \nIt will use an existing workspace directory on edit mode. If the workspace is empty the application will start deleting ALL FILES in the partition interpreting this is an expected change on the workspace, DO IT AT YOUR OWN RISK.");
                 Console.WriteLine("");
                 Console.WriteLine("--systemnodes: \nIt will include not R/W nodes into your workspace (Editing this files can most times break the system, and serves no purpose, enable this if you know what you're doing).");
+                Console.WriteLine("");
+                Console.WriteLine("--script: \nYou can use this with AUTOPATCH to use a custom patching script, if not defined the default cleanup script will be used.");
                 Console.WriteLine("");
                 Console.WriteLine("");
                 Console.WriteLine("Examples:");
@@ -288,9 +304,10 @@ internal class Program
         return modifiedPackage;
     }
 
-    public static string Patch(string originalFile, string outputFile = null)
+    public static string Patch(string patchingScript, string originalFile, string outputFile = null)
     {
         var modifiedPackage = GetWorkStream(originalFile, outputFile);
+
         var stopWatch = new Stopwatch();
         stopWatch.Start();
         _logger.LogInformation("Unpacking image...");
@@ -299,138 +316,9 @@ internal class Program
         stopWatch.Stop();
         _logger.LogInformation("Unpacked, operation took " + Math.Round(stopWatch.Elapsed.TotalSeconds, 1) + "s");
 
-        stopWatch.Restart();
-
-        var systemFiles = allFiles.Where(x => !x.IsUserNode).ToList();
-
-        var userFiles = allFiles.Where(x => x.IsUserNode).ToList();
-
-        var apps = userFiles.Where(x => x.FullPath == "apps").ToList();
-
-        var deleteMatches = new List<string> {
-            "com.twitter",
-            "com.evernote",
-            "com.linkedin",
-            "com.tcs.maps",
-            "com.rim.bb.app.facebook",
-            "com.rim.bb.app.retaildemoshim",
-            "sys.socialconnect.linkedin",
-            "sys.socialconnect.twitter",
-            "sys.socialconnect.youtube",
-            "sys.socialconnect.facebook",
-            "sys.cfs.box",
-            "sys.cfs.dropbox",
-            "sys.uri.youtube",
-            "sys.weather",
-            "sys.bbm",
-            "sys.appworld",
-            "sys.howto",
-            "sys.help",
-            "sys.firstlaunch",
-            "sys.deviceswitch",
-            "sys.paymentsystem",
-            "sys.setupbuffet"
-        };
-
-        var skipDeletion = new List<string>([
-            "sys.firstlaunch"
-        ]);
-
-        _logger.LogInformation("Deleting bloatware for block liberation.");
-
-        var appListFile = userFiles.FirstOrDefault(x => x.FullPath == "var/pps/system/installer/registeredapps/applications");
-        var random = new Random();
-        if (appListFile != null)
-        {
-            var registeredAppsLines = appListFile.ReadAllText().Split('\n').ToList();
-            var filesToEdit = new List<FileSystemNode>();
-            filesToEdit.AddRange(userFiles.Where(x => x.FullPath.StartsWith("var/etc/default_order")));
-            filesToEdit.AddRange(userFiles.Where(x => x.FullPath.StartsWith("var/pps/system/navigator/invokes/invoke")));
-            filesToEdit.AddRange(userFiles.Where(x => x.FullPath.StartsWith("var/pps/system/installer/appdetails/applications")));
-            filesToEdit.Add(userFiles.FirstOrDefault(x => x.FullPath == "var/pps/system/navigator/applications/applications"));
-            filesToEdit.Add(userFiles.FirstOrDefault(x => x.FullPath == "var/pps/system/navigator/urls"));
-            filesToEdit.Add(userFiles.FirstOrDefault(x => x.FullPath == "var/pps/system/bslauncher"));
-
-            var gidFiles = userFiles.Where(x => x.FullPath.StartsWith("apps/gid2app")).ToList();
-            var gidDictionary = new Dictionary<string, FileSystemNode>();
-
-            foreach (var gid in gidFiles)
-            {
-                var appId = gid.ReadAllText().Replace("/apps/", "");
-                gidDictionary[appId] = gid;
-            }
-
-            foreach (var match in deleteMatches)
-            {
-                var appLine = registeredAppsLines.FirstOrDefault(x => x.StartsWith(match));
-                if (appLine == null)
-                    continue;
-
-
-                _logger.LogInformation($"Deleting {match}");
-
-                var appId = appLine.Split(',')[0];
-                appId = appId.Split("::")[0];
-
-
-                if (!skipDeletion.Contains(match))
-                {
-                    var appDirectory = userFiles.FirstOrDefault(x => x.FullPath == "apps/" + appId);
-                    var appContent = appDirectory.Children;
-                    foreach (var appDir in appContent)
-                    {
-                        appDir.Delete();
-                    }
-
-                    appDirectory.Name = "apps/DELETED_" + (random.Next(999999)).ToString().PadLeft(6);
-                }
-
-                var gidFile = gidDictionary.Where(x => x.Key.Contains(appId)).Select(x => x.Value).FirstOrDefault();
-                if (gidFile != null)
-                {
-                    _logger.LogInformation($"Removing GID File {gidFile.FullPath} of {appId}");
-                    gidFile.Delete();
-                }
-
-                foreach (var file in filesToEdit)
-                {
-                    if (file == null)
-                        continue;
-
-                    var fileContent = file.ReadAllText().Split('\n').ToList();
-                    fileContent.RemoveAll(x => x.StartsWith(match));
-                    file.WriteAllText(string.Join('\n', fileContent));
-                }
-
-                registeredAppsLines.RemoveAll(x => x.StartsWith(appId));
-            }
-
-            appListFile.WriteAllText(string.Join("\n", registeredAppsLines));
-
-        }
-
-
-
-        var navigatorConfigFile = userFiles.FirstOrDefault(x => x.FullPath == "var/pps/system/navigator/config");
-        navigatorConfigFile.WriteAllText(navigatorConfigFile.ReadAllText().Replace("autorun::1", "autorun::0").Replace(",\"com.amazon\"", ""));
-
-        var appConfig = userFiles.FirstOrDefault(x => x.FullPath == "var/pps/system/appconfig/sys.settings");
-        appConfig.WriteAllText(appConfig.ReadAllText().Replace("false", "true"));
-
-        var bbadsConf = userFiles.FirstOrDefault(x => x.FullPath == "var/pps/services/bbads/configuration");
-        bbadsConf.WriteAllText(bbadsConf.ReadAllText().Replace("www.blackberry.com/app_includes/asdk", "service.waitberry.com"));
-
-        var otaConfigFile = userFiles.FirstOrDefault(x => x.FullPath == "var/pps/system/ota/serverurls");
-        otaConfigFile.WriteAllText(otaConfigFile.ReadAllText()
-            .Replace("cs.sl.blackberry.com", "service.waitberry.com")
-            .Replace("cp256.pushapi.na.blackberry.com", "service.waitberry.com")
-            .Replace("cse.dcs.blackberry.com", "service.waitberry.com")
-            .Replace("cse.doc.blackberry.com", "service.waitberry.com"));
-
-
-        stopWatch.Stop();
-        _logger.LogInformation($"Bloatware removed, operation took {Math.Round(stopWatch.Elapsed.TotalSeconds, 1)}s");
-        modifiedPackage.Close();
+        var liveEditingProcessor = new LiveEditingProcessor(allFiles, _logger, null);
+        liveEditingProcessor.RunScript(patchingScript);
+        liveEditingProcessor.Start().Wait();
         return outputFile;
     }
 
@@ -452,7 +340,7 @@ internal class Program
 
         stopWatch.Stop();
         _logger.LogInformation("Unpacked, operation took " + Math.Round(stopWatch.Elapsed.TotalSeconds, 1) + "s");
-        var editingProcessor = new LiveEditingProcessor(editableFiles, workspaceDir, _logger);
+        var editingProcessor = new LiveEditingProcessor(editableFiles, _logger, workspaceDir);
 
         if (createWorkspace)
         {
