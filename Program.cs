@@ -22,15 +22,6 @@ internal class Program
         Console.WriteLine("");
 
 
-        args = [
-            "EDIT",
-            "--os", @"C:\Users\habbo\Documents\BBDev\Images\common\OS_10.3.3.3216.qc8960.factory_sfi.User-OS-IFS.Signed",
-            "--radio", @"C:\Users\habbo\Documents\BBDev\Images\q20\Radio_Z30-Classic-Leap_10.3.3.3217.Signed",
-            "--skipWorkspace",
-            "--outputdir", @"C:\Users\habbo\Documents\BBDev\output",
-        ];
-
-
         var options = GetOptions(args);
         var procedure = args.Length > 0 ? args[0].ToUpper() : null;
         if (procedure != null)
