@@ -10,29 +10,33 @@ using System.Threading.Tasks;
 
 namespace BlackberrySystemPacker.Helpers.EditingCommands
 {
-    public class RemoveCommand : EditorCommand
+    public class ChangeGroupCommand : EditingCommand
     {
-        new string Description { get; set; } = "Remove a file or directory.";
+        public override string Description { get; set; } = "Change the group of a file or directory.";
 
-        public RemoveCommand() : base("rm", "remove", "delete")
+        public ChangeGroupCommand() : base("gid", "chgrp", "setgroup", "changegroup")
         {
         }
 
         public override void Execute(ConcurrentQueue<LiveEditingTask> tasks, List<FileSystemNode> workingNodes, string[] args)
         {
-            if (args.Length < 2)
+            if (args.Length < 3)
             {
-                throw new ArgumentException("Invalid rm command, please provide a file path.");
+                throw new ArgumentException("Invalid gid command, please provide a group id and a file path.");
             }
-            var path = args[1];
+            var gid = args[1];
+            var path = args[2];
+
             if (string.IsNullOrWhiteSpace(path))
             {
-                throw new ArgumentException("Invalid command, please provide a file path.");
+                throw new ArgumentException("Invalid chmod command, please provide a file path.");
             }
+
             var task = new LiveEditingTask()
             {
                 RelativeNodePath = path,
-                Type = LiveEditingTaskType.Delete,
+                Type = LiveEditingTaskType.SetGroup,
+                GroupId = Convert.ToInt32(gid),
             };
             tasks.Enqueue(task);
         }

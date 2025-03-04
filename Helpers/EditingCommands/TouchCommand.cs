@@ -10,33 +10,33 @@ using System.Threading.Tasks;
 
 namespace BlackberrySystemPacker.Helpers.EditingCommands
 {
-    public class ChangeGroupCommand : EditorCommand
+    public class TouchCommand : EditingCommand
     {
-        new string Description { get; set; } = "Change the group of a file or directory.";
+        public override string Description { get; set; } = "Creates a file.";
 
-        public ChangeGroupCommand() : base("gid", "chgrp", "setgroup", "changegroup")
+        public TouchCommand() : base("createfile", "touch")
         {
         }
 
         public override void Execute(ConcurrentQueue<LiveEditingTask> tasks, List<FileSystemNode> workingNodes, string[] args)
         {
-            if (args.Length < 3)
+            if (args.Length < 2)
             {
-                throw new ArgumentException("Invalid gid command, please provide a group id and a file path.");
+                throw new ArgumentException("Invalid touch command, please provide a file path.");
             }
-            var gid = args[1];
-            var path = args[2];
-
+            var path = args[1];
             if (string.IsNullOrWhiteSpace(path))
             {
-                throw new ArgumentException("Invalid chmod command, please provide a file path.");
+                throw new ArgumentException("Invalid command, please provide a file path.");
             }
+
+            var content = args.Length > 2 ? args[2] : string.Empty;
 
             var task = new LiveEditingTask()
             {
                 RelativeNodePath = path,
-                Type = LiveEditingTaskType.SetGroup,
-                GroupId = Convert.ToInt32(gid),
+                Type = LiveEditingTaskType.CreateFile,
+                Data = Encoding.ASCII.GetBytes(content)
             };
             tasks.Enqueue(task);
         }

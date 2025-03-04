@@ -10,11 +10,11 @@ using System.Threading.Tasks;
 
 namespace BlackberrySystemPacker.Helpers.EditingCommands
 {
-    public class CreateDirectoryCommand : EditorCommand
+    public class RemoveCommand : EditingCommand
     {
-        new string Description { get; set; } = "Creates a directory.";
+        public override string Description { get; set; } = "Remove a file or directory.";
 
-        public CreateDirectoryCommand() : base("mkdir", "createdirectory")
+        public RemoveCommand() : base("rm", "remove", "delete")
         {
         }
 
@@ -22,21 +22,18 @@ namespace BlackberrySystemPacker.Helpers.EditingCommands
         {
             if (args.Length < 2)
             {
-                throw new ArgumentException("Invalid mkdir command, please provide a directory path.");
+                throw new ArgumentException("Invalid rm command, please provide a file path.");
             }
             var path = args[1];
-
             if (string.IsNullOrWhiteSpace(path))
             {
                 throw new ArgumentException("Invalid command, please provide a file path.");
             }
-
             var task = new LiveEditingTask()
             {
                 RelativeNodePath = path,
-                Type = LiveEditingTaskType.CreateDirectory,
+                Type = LiveEditingTaskType.Delete,
             };
-
             tasks.Enqueue(task);
         }
     }

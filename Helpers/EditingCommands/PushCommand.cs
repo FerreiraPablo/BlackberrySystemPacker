@@ -10,9 +10,9 @@ using System.Threading.Tasks;
 
 namespace BlackberrySystemPacker.Helpers.EditingCommands
 {
-    public class PushCommand : EditorCommand
+    public class PushCommand : EditingCommand
     {
-        new string Description { get; set; } = "Push a file from your system to the image.";
+        public override string Description { get; set; } = "Push a file from your system to the image.";
 
         public PushCommand() : base("push", "pushfile")
         {
