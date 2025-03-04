@@ -42,7 +42,7 @@ namespace BlackberrySystemPacker.Core
 
     public class LiveEditingProcessor
     {
-        private List<EditorCommand> commands = new List<EditorCommand>()
+        private List<EditingCommand> commands = new List<EditingCommand>()
         {
             new ChangeGroupCommand(),
             new ChangeModeCommand(),
@@ -52,12 +52,15 @@ namespace BlackberrySystemPacker.Core
             new CreateDirectoryCommand(),
             new PermissionsCommand(),
             new PushCommand(),
+            new RemoveAppCommand(),
             new RemoveCommand(),
             new RemoveLineCommand(),
             new TouchCommand(),
         };
 
         public bool KeepRunning = true;
+
+        public bool Pause = false;
 
         private ConcurrentQueue<LiveEditingTask> _tasks = new();
         private List<FileSystemNode> _workingNodes;
@@ -77,6 +80,11 @@ namespace BlackberrySystemPacker.Core
             _logger.LogInformation($"You can go to the workspace in {_sourceDirectory} and create, delete or edit any file.");
             _logger.LogInformation("Write 'help' or enter for additional commands.");
             _logger.LogInformation("Write 'quit' then [ENTER] to stop the processor, and end the live editing session...");
+
+            foreach (var commandDef in commands)
+            {
+                commandDef.Logger = _logger;
+            }
 
             await Task.WhenAll(
             ApplyChanges(),
@@ -110,6 +118,7 @@ namespace BlackberrySystemPacker.Core
                     }
 
                     var existingCommand = commands.FirstOrDefault(x => x.Aliases.Contains(commandAlias));
+                    Pause = true;
                     if (existingCommand != null)
                     {
                         try {
@@ -123,6 +132,7 @@ namespace BlackberrySystemPacker.Core
                     {
                         _logger.LogError($"Invalid command: {commandAlias}");
                     }
+                    Pause = false;
                 }
                 Console.WriteLine("");
                 _logger.LogInformation("Stopping live editing processor.");
@@ -207,6 +217,10 @@ namespace BlackberrySystemPacker.Core
 
         private void RunTasks()
         {
+            if(Pause)
+            {
+                return;
+            }
             var existingTask = _tasks.TryDequeue(out var currentTask);
             if (!existingTask)
             {

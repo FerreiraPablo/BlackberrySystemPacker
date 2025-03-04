@@ -1,5 +1,5 @@
 ﻿using BlackberrySystemPacker.Core;
-using BlackberrySystemPacker.Helpers.EditingCommands;
+using BlackberrySystemPacker.Helpers.Nodes;
 using BlackberrySystemPacker.Nodes;
 using System;
 using System.Collections.Concurrent;
@@ -10,22 +10,21 @@ using System.Threading.Tasks;
 
 namespace BlackberrySystemPacker.Helpers.EditingCommands
 {
-    public class ChangeModeCommand : EditorCommand
+    public class CreateDirectoryCommand : EditingCommand
     {
-        new string Description { get; set; } = "Change the node mode of a file or directory.";
+        public override string Description { get; set; } = "Creates a directory.";
 
-        public ChangeModeCommand() : base("mode", "setmode")
+        public CreateDirectoryCommand() : base("mkdir", "createdirectory")
         {
         }
 
         public override void Execute(ConcurrentQueue<LiveEditingTask> tasks, List<FileSystemNode> workingNodes, string[] args)
         {
-            if (args.Length < 3)
+            if (args.Length < 2)
             {
-                throw new ArgumentException("Invalid  command, please provide a mode and a file path.");
+                throw new ArgumentException("Invalid mkdir command, please provide a directory path.");
             }
-            var mode = args[1];
-            var path = args[2];
+            var path = args[1];
 
             if (string.IsNullOrWhiteSpace(path))
             {
@@ -35,9 +34,9 @@ namespace BlackberrySystemPacker.Helpers.EditingCommands
             var task = new LiveEditingTask()
             {
                 RelativeNodePath = path,
-                Type = LiveEditingTaskType.SetMode,
-                Mode = Convert.ToInt32(mode),
+                Type = LiveEditingTaskType.CreateDirectory,
             };
+
             tasks.Enqueue(task);
         }
     }

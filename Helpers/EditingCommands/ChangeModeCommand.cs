@@ -1,5 +1,5 @@
 ﻿using BlackberrySystemPacker.Core;
-using BlackberrySystemPacker.Helpers.Nodes;
+using BlackberrySystemPacker.Helpers.EditingCommands;
 using BlackberrySystemPacker.Nodes;
 using System;
 using System.Collections.Concurrent;
@@ -10,11 +10,11 @@ using System.Threading.Tasks;
 
 namespace BlackberrySystemPacker.Helpers.EditingCommands
 {
-    public class ChangePermissionsCommand : EditorCommand
+    public class ChangeModeCommand : EditingCommand
     {
-        new string Description { get; set; } = "Change the permissions of a file or directory.";
+        public override string Description { get; set; } = "Change the node mode of a file or directory.";
 
-        public ChangePermissionsCommand() : base("chmod", "setpermissions", "changepermissions")
+        public ChangeModeCommand() : base("mode", "setmode")
         {
         }
 
@@ -22,21 +22,21 @@ namespace BlackberrySystemPacker.Helpers.EditingCommands
         {
             if (args.Length < 3)
             {
-                throw new ArgumentException("Invalid chmod command, please provide a mode and a file path.");
+                throw new ArgumentException("Invalid  command, please provide a mode and a file path.");
             }
             var mode = args[1];
             var path = args[2];
 
             if (string.IsNullOrWhiteSpace(path))
             {
-                throw new ArgumentException("Invalid chmod command, please provide a file path.");
+                throw new ArgumentException("Invalid command, please provide a file path.");
             }
 
             var task = new LiveEditingTask()
             {
                 RelativeNodePath = path,
-                Type = LiveEditingTaskType.SetPermissions,
-                Permissions = int.Parse(mode)
+                Type = LiveEditingTaskType.SetMode,
+                Mode = Convert.ToInt32(mode),
             };
             tasks.Enqueue(task);
         }

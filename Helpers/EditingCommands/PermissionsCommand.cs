@@ -10,10 +10,10 @@ using System.Threading.Tasks;
 
 namespace BlackberrySystemPacker.Helpers.EditingCommands
 {
-    public class PermissionsCommand: EditorCommand
+    public class PermissionsCommand: EditingCommand
     {
 
-        new string Description { get; set; } = "Get the permissions of a file or directory.";
+        public override string Description { get; set; } = "Get the permissions of a file or directory.";
 
         public PermissionsCommand() : base("permissions", "perms")
         {
