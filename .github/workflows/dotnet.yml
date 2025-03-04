@@ -45,3 +45,15 @@ jobs:
               with:
                   name: linux-x64-build
                   path: ./publish/linux-x64
+
+            - name: Release
+              uses: softprops/action-gh-release@v2
+              if: startsWith(github.ref, 'release/')
+              with:
+                  files: |
+                      ./publish/win-x64/*
+                      ./publish/linux-x64/*
+                  token: ${{ secrets.GITHUB_TOKEN }}
+                  body: ${{ github.ref }}
+                  draft: false
+                  prerelease: false
