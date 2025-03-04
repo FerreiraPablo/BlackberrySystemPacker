@@ -48,7 +48,7 @@ jobs:
 
             - name: Release
               uses: softprops/action-gh-release@v2
-              if: startsWith(github.ref, 'release/')
+              if: startsWith(github.ref, 'refs/release/')
               with:
                   files: |
                       ./publish/win-x64/*
