@@ -2,6 +2,7 @@ using System.IO;
 using System.Text;
 using BlackberrySystemPacker.Helpers.Nodes;
 using BlackberrySystemPacker.Helpers.QNX6;
+using Newtonsoft.Json.Linq;
 using static System.Runtime.InteropServices.JavaScript.JSType;
 
 namespace BlackberrySystemPacker.Nodes
@@ -17,85 +18,6 @@ namespace BlackberrySystemPacker.Nodes
 
         public byte Status = 1;
 
-        public override string Name
-        {
-            get
-            {
-                var name = GetRawName();
-
-
-                if(!KeepPPSNodes) { 
-                    if (name != null && name.Contains("@"))
-                    {
-                        name = name.Split("@")[0];
-                    }
-                }
-
-                return name;
-            }
-            set
-            {
-
-                if (string.IsNullOrEmpty(value))
-                {
-                    return;
-                }
-
-                if (Name == value)
-                {
-                    return;
-                }
-
-                var suffix = "";
-
-
-                if(!KeepPPSNodes) { 
-                    var currentName = GetRawName();
-                    if (currentName != null && currentName.Contains("@"))
-                    {
-                        var parts = currentName.Split("@")[1].Split(".");
-                        var uid = parts[0];
-                        var gid = parts[1];
-                        var perms = parts[2];
-                        var currentPerms = FileNodeHelper.GetPermissionsOctal(Mode);
-                        suffix = $"@{UserId}.{GroupId}.{perms}";
-                    }
-                }
-
-                var name = value + suffix;
-                var currentStreamPosition = Stream.Position;
-                var definitionPosition = (Parent as UserSystemNode).GetChildPosition(NodeNumber);
-                Stream.Seek(definitionPosition, SeekOrigin.Begin);
-                var nameBytes = Encoding.ASCII.GetBytes(name);
-                var binaryWriter = new BinaryWriter(Stream);
-                binaryWriter.Write(NodeNumber);
-
-                var isLongFileName = nameBytes.Length > 27;
-                binaryWriter.Write((byte)(isLongFileName ? 255 : nameBytes.Length));
-
-                if (isLongFileName)
-                {
-                    var namePosition = binaryWriter.BaseStream.Position + 3;
-                    var foundNode = NodeStream.AddLongFilename(name);
-                    if (foundNode < 0)
-                    {
-                        throw new Exception("No space available for that name length");
-                    }
-
-                    var nam = NodeStream.GetLongFilename(foundNode);
-                    binaryWriter.BaseStream.Position = namePosition;
-                    binaryWriter.Write(foundNode);
-                }
-                else
-                {
-                    binaryWriter.Write(nameBytes);
-                }
-
-                Stream.Seek(currentStreamPosition, SeekOrigin.Begin);
-
-            }
-        }
-
         public int NodeNumber { get; set; }
 
         public int LinkNumber { get; set; } = 1;
@@ -103,7 +25,6 @@ namespace BlackberrySystemPacker.Nodes
         public override int Size { get; set; }
 
         public int Levels { get; set; }
-
 
         public int[] Sectors = new int[16];
 
@@ -365,7 +286,7 @@ namespace BlackberrySystemPacker.Nodes
             ClearData();
             NodeStream.GetTopSuperBlock().FreeNodeCount++;
             Status = StatusDeleted;
-            NodeStream.WriteNode(this);
+            Apply();
             var parents = ParentReferences;
             foreach (var parent in parents)
             {
@@ -654,10 +575,86 @@ namespace BlackberrySystemPacker.Nodes
             return name;
         }
 
+        public string GetName()
+        {
+            var name = GetRawName();
+
+            if (!KeepPPSNodes)
+            {
+                if (name != null && name.Contains("@"))
+                {
+                    name = name.Split("@")[0];
+                }
+            }
+
+            return name;
+        }
+
+        public void SetName(string value)
+        {
+            if (string.IsNullOrEmpty(value))
+            {
+                return;
+            }
+
+            if (Name == value)
+            {
+                return;
+            }
+
+            var suffix = "";
+
+
+            if (!KeepPPSNodes)
+            {
+                var currentName = GetRawName();
+                if (currentName != null && currentName.Contains("@"))
+                {
+                    var parts = currentName.Split("@")[1].Split(".");
+                    var uid = parts[0];
+                    var gid = parts[1];
+                    var perms = parts[2];
+                    var currentPerms = FileNodeHelper.GetPermissionsOctal(Mode);
+                    suffix = $"@{UserId}.{GroupId}.{perms}";
+                }
+            }
+
+            var name = value + suffix;
+            var currentStreamPosition = Stream.Position;
+            var definitionPosition = (Parent as UserSystemNode).GetChildPosition(NodeNumber);
+            Stream.Seek(definitionPosition, SeekOrigin.Begin);
+            var nameBytes = Encoding.ASCII.GetBytes(name);
+            var binaryWriter = new BinaryWriter(Stream);
+            binaryWriter.Write(NodeNumber);
+
+            var isLongFileName = nameBytes.Length > 27;
+            binaryWriter.Write((byte)(isLongFileName ? 255 : nameBytes.Length));
+
+            if (isLongFileName)
+            {
+                var namePosition = binaryWriter.BaseStream.Position + 3;
+                var foundNode = NodeStream.AddLongFilename(name);
+                if (foundNode < 0)
+                {
+                    throw new Exception("No space available for that name length");
+                }
+
+                var nam = NodeStream.GetLongFilename(foundNode);
+                binaryWriter.BaseStream.Position = namePosition;
+                binaryWriter.Write(foundNode);
+            }
+            else
+            {
+                binaryWriter.Write(nameBytes);
+            }
+
+            Stream.Seek(currentStreamPosition, SeekOrigin.Begin);
+        }
+
         public override void Apply()
         {
+            SetName(Name);
             NodeStream.WriteNode(this);
         }
     }
-
 }

@@ -5,6 +5,7 @@ using Microsoft.Extensions.Logging;
 using System;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
@@ -39,7 +40,10 @@ namespace BlackberrySystemPacker.Helpers.EditingCommands
             if (appListFile != null)
             {
                 var registeredAppsLines = appListFile.ReadAllText().Split('\n').ToList();
-                var filesToEdit = new List<FileSystemNode>();
+                var filesToEdit = new List<FileSystemNode>
+                {
+                    appListFile
+                };
                 filesToEdit.AddRange(workingNodes.Where(x => x.FullPath.StartsWith("var/etc/default_order")));
                 filesToEdit.AddRange(workingNodes.Where(x => x.FullPath.StartsWith("var/pps/system/navigator/invokes/invoke")));
                 filesToEdit.AddRange(workingNodes.Where(x => x.FullPath.StartsWith("var/pps/system/installer/appdetails/applications")));
@@ -49,17 +53,43 @@ namespace BlackberrySystemPacker.Helpers.EditingCommands
 
                 var gidFiles = workingNodes.Where(x => x.FullPath.StartsWith("apps/gid2app")).ToList();
                 var gidDictionary = new Dictionary<string, FileSystemNode>();
-
+                Stopwatch sw = new Stopwatch();
+                Logger.LogInformation($"Found {gidFiles.Count} gid files.");
+                sw.Start();
                 foreach (var gid in gidFiles)
                 {
                     var appId = gid.ReadAllText().Replace("/apps/", "");
                     gidDictionary[appId] = gid;
                 }
+                sw.Stop();
+                Logger.LogInformation($"Gid files read in {Math.Round(sw.Elapsed.TotalSeconds, 1)}s.");
+
+                Logger.LogInformation($"Reading app references...");
+                sw.Restart();
+                var filesContent = new Dictionary<string, string>();
+                foreach (var file in filesToEdit)
+                {
+                    if (file == null)
+                    {
+                        continue;
+                    }
+
+                    filesContent[file.FullPath] = file.ReadAllText();
+                }
+                sw.Stop();
+                Logger.LogInformation($"App references read in {Math.Round(sw.Elapsed.TotalSeconds, 1)}s.");
+
+
+                var appsDirectory = workingNodes.First(x => x.FullPath == "apps");
+
+                Logger.LogInformation($"Setting up the deletion pipeline...");
+                sw.Restart();
 
                 foreach (var match in deleteMatches)
                 {
                     var appLine = registeredAppsLines.FirstOrDefault(x => x.StartsWith(match));
-                    if (appLine == null) { 
+                    if (appLine == null)
+                    {
                         Logger.LogWarning($"App {match} not found in the registered apps list.");
                         continue;
                     }
@@ -67,7 +97,7 @@ namespace BlackberrySystemPacker.Helpers.EditingCommands
                     var appId = appLine.Split(',')[0];
                     appId = appId.Split("::")[0];
 
-                    var appDirectory = workingNodes.FirstOrDefault(x => x.FullPath == "apps/" + appId);
+                    var appDirectory = appsDirectory.Children.FirstOrDefault(x => x.FullPath == "apps/" + appId);
                     var appContent = appDirectory.Children;
                     foreach (var appDir in appContent)
                     {
@@ -95,38 +125,43 @@ namespace BlackberrySystemPacker.Helpers.EditingCommands
                         });
                     }
 
-                    foreach (var file in filesToEdit)
+                    foreach (var file in filesContent)
                     {
-                        if (file == null)
-                            continue;
-
-                        var fileContent = file.ReadAllText().Split('\n').ToList();
-                        var removedLines = fileContent.RemoveAll(x => x.StartsWith(match));
-                        if(removedLines == 0)
+                        var currentContent = file.Value.Split('\n').ToList();
+                        var removedLines = currentContent.RemoveAll(x => x.StartsWith(match));
+                        if (removedLines == 0)
                         {
                             continue;
                         }
 
-                        var data = string.Join('\n', fileContent);
-                       
-                        tasks.Enqueue(new LiveEditingTask()
-                        {
-                            RelativeNodePath = file.FullPath,
-                            Type = LiveEditingTaskType.Write,
-                            Data = Encoding.ASCII.GetBytes(data)
-                        });
+                        var data = string.Join('\n', currentContent);
+                        filesContent[file.Key] = data;
                     }
-
-                    registeredAppsLines.RemoveAll(x => x.StartsWith(appId));
                 }
 
-                var newAppsList = string.Join("\n", registeredAppsLines);
-                tasks.Enqueue(new LiveEditingTask()
+                foreach (var file in filesContent)
                 {
-                    RelativeNodePath = appListFile.FullPath,
-                    Type = LiveEditingTaskType.Write,
-                    Data = Encoding.ASCII.GetBytes(newAppsList)
-                });
+                    var currentContent = workingNodes.FirstOrDefault(x => x.FullPath == file.Key);
+                    if (currentContent == null)
+                    {
+                        continue;
+                    }
+
+                    var data = currentContent.ReadAllText();
+                    if (data == file.Value)
+                    {
+                        continue;
+                    }
+
+                    tasks.Enqueue(new LiveEditingTask()
+                    {
+                        RelativeNodePath = file.Key,
+                        Type = LiveEditingTaskType.Write,
+                        Data = Encoding.ASCII.GetBytes(file.Value)
+                    });
+                }
+                sw.Stop();
+                Logger.LogInformation($"Deletion pipeline set in {Math.Round(sw.Elapsed.TotalSeconds, 1)}s.");
 
                 Logger.LogInformation($"App(s) {string.Join(", ", deleteMatches)} deletion pipeline set.");
             }

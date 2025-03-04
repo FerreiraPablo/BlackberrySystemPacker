@@ -14,7 +14,7 @@ namespace BlackberrySystemPacker.Nodes
 
         public int ExtMode { get; set; }
 
-        public abstract string Name { get; set; }
+        public string Name { get; set; }
 
         public string Path { get; set; } = string.Empty;
 
@@ -76,7 +76,6 @@ namespace BlackberrySystemPacker.Nodes
         public abstract FileSystemNode CreateDirectory(string name = null);
 
         public abstract void Move(FileSystemNode parent);
-
 
         public abstract void Apply();
 

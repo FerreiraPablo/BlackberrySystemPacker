@@ -6,10 +6,7 @@ namespace BlackberrySystemPacker.Nodes
 {
     public class OperatingSystemNode : FileSystemNode
     {
-
         public int Flags { get; set; }
-
-        public override string Name { get; set; }
 
         public override int Size {get => DecompressedSize; set => DecompressedSize = value; }
 

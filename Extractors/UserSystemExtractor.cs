@@ -76,6 +76,7 @@ namespace BlackberrySystemPacker.Extractors
                 //childNode.Name = CleanFileName(fileName);
                 childNode.Path = FixPath(node.FullPath);
                 childNode.Parent = node;
+                childNode.Name = childNode.GetName();
                 children.Add(childNode);
 
                 if (childNode.IsDirectory())

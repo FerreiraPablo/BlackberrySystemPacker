@@ -9,7 +9,6 @@ using System.Diagnostics.CodeAnalysis;
 
 internal class Program
 {
-
     private static bool _keepSystemNodes = false;
 
     private static ILogger _logger = new CustomLogger("BlackberrySystemPacker", LogLevel.Information);
@@ -27,6 +26,7 @@ internal class Program
             "EDIT",
             "--os", @"C:\Users\habbo\Documents\BBDev\Images\common\OS_10.3.3.3216.qc8960.factory_sfi.User-OS-IFS.Signed",
             "--radio", @"C:\Users\habbo\Documents\BBDev\Images\q20\Radio_Z30-Classic-Leap_10.3.3.3217.Signed",
+            "--skipWorkspace",
             "--outputdir", @"C:\Users\habbo\Documents\BBDev\output",
         ];
 
@@ -99,6 +99,7 @@ internal class Program
         var autoloader = options.GetValueOrDefault("autoloader") ?? options.GetValueOrDefault("al");
         var writeInput = options.GetValueOrDefault("writeinput") ?? options.GetValueOrDefault("wi");
         var systemNodes = options.GetValueOrDefault("systemnodes") ?? options.GetValueOrDefault("sn");
+        var skipWorkspaceBuild = options.GetValueOrDefault("skipworkspace") ?? options.GetValueOrDefault("sw");
         if (writeInput != null)
         {
             outputFile = signedFile;
@@ -178,7 +179,7 @@ internal class Program
                 modifiedFile = Patch(signedFile, outputFile);
                 break;
             case "EDIT":
-                modifiedFile = Export(workspaceDir, signedFile, outputFile);
+                modifiedFile = Export(workspaceDir, skipWorkspaceBuild == null, signedFile, outputFile);
                 break;
             case "HELP":
                 Console.WriteLine($"Usage: {executableFile} [AUTOPATCH|EDIT|HELP] [OPTIONS]");
@@ -437,7 +438,7 @@ internal class Program
         return outputFile;
     }
 
-    public static string Export(string workspaceDir, string originalFile, string outputFile = null)
+    public static string Export(string workspaceDir, bool createWorkspace, string originalFile, string outputFile = null)
     {
         var modifiedPackage = GetWorkStream(originalFile, outputFile);
         var stopWatch = new Stopwatch();
@@ -456,7 +457,11 @@ internal class Program
         stopWatch.Stop();
         _logger.LogInformation("Unpacked, operation took " + Math.Round(stopWatch.Elapsed.TotalSeconds, 1) + "s");
         var editingProcessor = new LiveEditingProcessor(editableFiles, workspaceDir, _logger);
-        editingProcessor.Build();
+
+        if(createWorkspace)
+        {
+            editingProcessor.Build();
+        }
         editingProcessor.Start().Wait();
         modifiedPackage.Close();
         return outputFile;
