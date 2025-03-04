@@ -10,11 +10,11 @@ using System.Threading.Tasks;
 
 namespace BlackberrySystemPacker.Helpers.EditingCommands
 {
-    public class ChangeUserCommand : EditorCommand
+    public class ChangePermissionsCommand : EditingCommand
     {
-        new string Description { get; set; } = "Change the user of a file or directory.";
+        public override string Description { get; set; } = "Change the permissions of a file or directory.";
 
-        public ChangeUserCommand() : base("uid", "changeuser", "setuser", "chown")
+        public ChangePermissionsCommand() : base("chmod", "setpermissions", "changepermissions")
         {
         }
 
@@ -22,21 +22,21 @@ namespace BlackberrySystemPacker.Helpers.EditingCommands
         {
             if (args.Length < 3)
             {
-                throw new ArgumentException("Invalid uid command, please provide a user id and a file path.");
+                throw new ArgumentException("Invalid chmod command, please provide a mode and a file path.");
             }
-            var uid = args[1];
+            var mode = args[1];
             var path = args[2];
 
             if (string.IsNullOrWhiteSpace(path))
             {
-                throw new ArgumentException("Invalid command, please provide a file path.");
+                throw new ArgumentException("Invalid chmod command, please provide a file path.");
             }
 
             var task = new LiveEditingTask()
             {
                 RelativeNodePath = path,
-                Type = LiveEditingTaskType.SetUser,
-                UserId = Convert.ToInt32(uid),
+                Type = LiveEditingTaskType.SetPermissions,
+                Permissions = int.Parse(mode)
             };
             tasks.Enqueue(task);
         }
