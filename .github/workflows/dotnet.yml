@@ -29,10 +29,10 @@ jobs:
               run: dotnet test --no-build --verbosity normal --configuration Release
               
             - name: Publish Windows x64
-              run: dotnet publish BlackberrySystemPacker.csproj --no-restore --configuration Release -r win-x64 -p:PublishSingleFile=true -p:PublishTrimmed=true  -p:DebugType=None -p:DebugSymbols=false --self-contained true -o ./publish/win-x64
+              run: dotnet publish BlackberrySystemPacker.csproj --no-restore --configuration Release -r win-x64 -p:AssemblyName=blackberrysystempacker-win-x64 -p:PublishSingleFile=true -p:PublishTrimmed=true  -p:DebugType=None -p:DebugSymbols=false --self-contained true -o ./publish/win-x64
               
             - name: Publish Linux x64
-              run: dotnet publish BlackberrySystemPacker.csproj --no-restore --configuration Release -r linux-x64 -p:PublishSingleFile=true -p:PublishTrimmed=true -p:DebugType=None -p:DebugSymbols=false --self-contained true -o ./publish/linux-x64
+              run: dotnet publish BlackberrySystemPacker.csproj --no-restore --configuration Release -r linux-x64 -p:AssemblyName=blackberrysystempacker-linux-x64 -p:PublishSingleFile=true -p:PublishTrimmed=true -p:DebugType=None -p:DebugSymbols=false --self-contained true -o ./publish/linux-x64
               
             - name: Upload Windows Artifact
               uses: actions/upload-artifact@v4
@@ -46,6 +46,23 @@ jobs:
                   name: linux-x64-build
                   path: ./publish/linux-x64
 
+    release:
+        needs: build
+        runs-on: ubuntu-latest
+
+        steps:
+            - name: Download Windows Artifact
+              uses: actions/download-artifact@v3
+              with:
+                  name: win-x64-build
+                  path: ./publish/win-x64
+
+            - name: Download Linux Artifact
+              uses: actions/download-artifact@v3
+              with:
+                  name: linux-x64-build
+                  path: ./publish/linux-x64
+
             - name: Release
               uses: softprops/action-gh-release@v2
               if: startsWith(github.ref, 'refs/heads/release/')
@@ -54,7 +71,7 @@ jobs:
                       ./publish/win-x64/*
                       ./publish/linux-x64/*
                   token: ${{ secrets.GITHUB_TOKEN }}
-                  name: concat('Release ', github.ref_name)
+                  name: ${{ format('Release ', github.ref_name) }}
                   body: ${{ github.event.head_commit.message }}
                   fail_on_unmatched_files: true
                   draft: false
