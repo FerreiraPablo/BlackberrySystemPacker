@@ -2,7 +2,6 @@
 using BlackberrySystemPacker.Nodes;
 using Microsoft.Extensions.Logging;
 using System.Collections.Concurrent;
-using System.IO;
 
 namespace BlackberrySystemPacker.Core
 {

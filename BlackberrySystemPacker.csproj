@@ -14,14 +14,6 @@
     <SuppressTrimAnalysisWarnings>true</SuppressTrimAnalysisWarnings>
     <ILLinkTreatWarningsAsErrors>false</ILLinkTreatWarningsAsErrors>
   </PropertyGroup>
-
-  <ItemGroup>
-    <None Remove="defaultPatchingScript.sh" />
-  </ItemGroup>
-
-  <ItemGroup>
-    <EmbeddedResource Include="defaultPatchingScript.sh" />
-  </ItemGroup>
   <ItemGroup>
     <PackageReference Include="LTRData.DiscUtils.Vmdk" Version="1.0.51" />
     <PackageReference Include="Microsoft.Extensions.Logging" Version="9.0.2" />
