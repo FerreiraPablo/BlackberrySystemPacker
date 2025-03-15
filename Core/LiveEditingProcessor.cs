@@ -38,6 +38,8 @@ namespace BlackberrySystemPacker.Core
         public string ParentRelativePath = "";
 
         public LiveEditingTaskType Type;
+
+        public bool Processed = true;
     }
 
     public class LiveEditingProcessor
@@ -101,7 +103,8 @@ namespace BlackberrySystemPacker.Core
                     var input = Console.ReadLine();
                     Pause = true;
                     RunCommand(input);
-                    while (_tasks.Any())
+                    var currentTasks = _tasks.ToList();
+                    while (currentTasks.Any(x => !x.Processed))
                     {
                     }
                     _logger.LogInformation("Task done.");
@@ -279,6 +282,8 @@ namespace BlackberrySystemPacker.Core
                     else
                     {
                         _logger.LogError("The directory already exists, skipping directory creation task...");
+
+                        currentTask.Processed = true;
                         return;
                     }
                 }
@@ -295,6 +300,7 @@ namespace BlackberrySystemPacker.Core
 
             if (requiredFile == null)
             {
+                currentTask.Processed = true;
                 return;
             }
 
@@ -361,6 +367,7 @@ namespace BlackberrySystemPacker.Core
                     break;
             }
 
+            currentTask.Processed = true;
             stopWatch.Stop();
             //_logger.LogInformation($"Task for {currentTask.RelativeNodePath} {currentTask.Type} took {Math.Round(stopWatch.Elapsed.TotalSeconds, 1)}s");
         }
