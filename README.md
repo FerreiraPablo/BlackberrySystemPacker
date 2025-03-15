@@ -47,7 +47,7 @@ BlackberrySystemPacker [procedure] [options]
 - `AUTOPATCH`: Patches and image and removes unnecesary obsolete stuff.
 - `EDIT`: Edit an image and add or remove files.
 
-Run with `--help` for detailed command options.
+Run with `HELP` for detailed command options.
 
 ## Examples
 
