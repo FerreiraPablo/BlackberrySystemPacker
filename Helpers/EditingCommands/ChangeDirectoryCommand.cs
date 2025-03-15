@@ -1,5 +1,4 @@
 ﻿using BlackberrySystemPacker.Core;
-using BlackberrySystemPacker.Helpers.Nodes;
 using BlackberrySystemPacker.Nodes;
 using System;
 using System.Collections.Concurrent;
@@ -10,11 +9,11 @@ using System.Threading.Tasks;
 
 namespace BlackberrySystemPacker.Helpers.EditingCommands
 {
-    public class RemoveCommand : EditingCommand
+    public class ChangeDirectoryCommand : EditingCommand
     {
-        public override string Description { get; set; } = "Remove a file or directory.";
+        public override string Description { get; set; } = "Change the node mode of a file or directory.";
 
-        public RemoveCommand() : base("rm", "remove", "delete")
+        public ChangeDirectoryCommand() : base("changedirectory", "changedir", "cd")
         {
         }
 
@@ -22,19 +21,23 @@ namespace BlackberrySystemPacker.Helpers.EditingCommands
         {
             if (args.Length < 2)
             {
-                throw new ArgumentException("Invalid rm command, please provide a file path.");
+                throw new ArgumentException("Invalid  command, please provide a mode and a file path.");
             }
+            
             var path = GetValidPath(args[1]);
+
             if (string.IsNullOrWhiteSpace(path))
             {
                 throw new ArgumentException("Invalid command, please provide a file path.");
             }
-            var task = new LiveEditingTask()
+
+            var existingNode = workingNodes.FirstOrDefault(x => x.FullPath == path && x.IsDirectory());
+            if (existingNode == null)
             {
-                RelativeNodePath = path,
-                Type = LiveEditingTaskType.Delete,
-            };
-            tasks.Enqueue(task);
+                throw new ArgumentException("Invalid command, the specified path is not a directory.");
+            }
+
+            WorkingDirectory = args[1] == ".." ? existingNode.Parent.FullPath : existingNode.FullPath;
         }
     }
 }

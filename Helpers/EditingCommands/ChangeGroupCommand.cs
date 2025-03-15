@@ -24,8 +24,9 @@ namespace BlackberrySystemPacker.Helpers.EditingCommands
             {
                 throw new ArgumentException("Invalid gid command, please provide a group id and a file path.");
             }
+
             var gid = args[1];
-            var path = args[2];
+            var path = GetValidPath(args[2]);
 
             if (string.IsNullOrWhiteSpace(path))
             {

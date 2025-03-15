@@ -24,7 +24,7 @@ namespace BlackberrySystemPacker.Helpers.EditingCommands
             {
                 throw new ArgumentException("Invalid contentreplace command, please provide a file path, a search string and a replace string.");
             }
-            var path = args[1];
+            var path = GetValidPath(args[1]);
 
             if (string.IsNullOrWhiteSpace(path))
             {

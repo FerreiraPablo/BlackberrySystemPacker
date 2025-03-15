@@ -44,12 +44,15 @@ namespace BlackberrySystemPacker.Core
     {
         private List<EditingCommand> commands = new List<EditingCommand>()
         {
+            new ChangeDirectoryCommand(),
             new ChangeGroupCommand(),
             new ChangeModeCommand(),
             new ChangePermissionsCommand(),
             new ChangeUserCommand(),
             new ContentReplaceCommand(),
             new CreateDirectoryCommand(),
+            new CurrentWorkDirectoryCommand(),
+            new ListCommand(),
             new PermissionsCommand(),
             new PushCommand(),
             new RemoveAppCommand(),
@@ -98,6 +101,10 @@ namespace BlackberrySystemPacker.Core
                     var input = Console.ReadLine();
                     Pause = true;
                     RunCommand(input);
+                    while (_tasks.Any())
+                    {
+                    }
+                    _logger.LogInformation("Task done.");
                     Pause = false;
                 }
                 Console.WriteLine("");
@@ -291,7 +298,7 @@ namespace BlackberrySystemPacker.Core
                 return;
             }
 
-            _logger.LogInformation($"Executing task for {currentTask.RelativeNodePath} {currentTask.Type}");
+            //_logger.LogInformation($"Executing task for {currentTask.RelativeNodePath} {currentTask.Type}");
             var stopWatch = new System.Diagnostics.Stopwatch();
             stopWatch.Start();
             switch (currentTask.Type)
@@ -355,7 +362,7 @@ namespace BlackberrySystemPacker.Core
             }
 
             stopWatch.Stop();
-            _logger.LogInformation($"Task for {currentTask.RelativeNodePath} {currentTask.Type} took {Math.Round(stopWatch.Elapsed.TotalSeconds, 1)}s");
+            //_logger.LogInformation($"Task for {currentTask.RelativeNodePath} {currentTask.Type} took {Math.Round(stopWatch.Elapsed.TotalSeconds, 1)}s");
         }
 
         private async Task ApplyChanges()

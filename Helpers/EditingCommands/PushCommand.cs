@@ -30,7 +30,7 @@ namespace BlackberrySystemPacker.Helpers.EditingCommands
                 throw new ArgumentException("Invalid command, please provide a file path.");
             }
 
-            var destinationPath = args[2];
+            var destinationPath = GetValidPath(args[2]);
 
             if (string.IsNullOrWhiteSpace(destinationPath))
             {

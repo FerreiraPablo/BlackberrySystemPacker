@@ -25,7 +25,7 @@ namespace BlackberrySystemPacker.Helpers.EditingCommands
                 throw new ArgumentException("Invalid uid command, please provide a user id and a file path.");
             }
             var uid = args[1];
-            var path = args[2];
+            var path = GetValidPath(args[2]);
 
             if (string.IsNullOrWhiteSpace(path))
             {

@@ -1,12 +1,6 @@
 ﻿using BlackberrySystemPacker.Core;
-using BlackberrySystemPacker.Helpers.EditingCommands;
 using BlackberrySystemPacker.Nodes;
-using System;
 using System.Collections.Concurrent;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
 
 namespace BlackberrySystemPacker.Helpers.EditingCommands
 {
@@ -25,7 +19,7 @@ namespace BlackberrySystemPacker.Helpers.EditingCommands
                 throw new ArgumentException("Invalid  command, please provide a mode and a file path.");
             }
             var mode = args[1];
-            var path = args[2];
+            var path = GetValidPath(args[2]);
 
             if (string.IsNullOrWhiteSpace(path))
             {

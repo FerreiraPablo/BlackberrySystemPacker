@@ -24,7 +24,7 @@ namespace BlackberrySystemPacker.Helpers.EditingCommands
             {
                 throw new ArgumentException("Invalid mkdir command, please provide a directory path.");
             }
-            var path = args[1];
+            var path = GetValidPath(args[1]);
 
             if (string.IsNullOrWhiteSpace(path))
             {

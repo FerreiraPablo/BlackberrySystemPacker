@@ -46,7 +46,7 @@ namespace BlackberrySystemPacker.Core
                 fileNodes.AddRange(GetUserFileNodes(binaryReader, userPartition.Offset));
             }
 
-            return fileNodes.Where(x => x != null && !string.IsNullOrEmpty(x.FullPath)).ToList();
+            return fileNodes.Where(x => x != null && x.Name != null).ToList();
         }
 
         private List<FileSystemNode> GetOperatingSystemFileNodes(BinaryReader binaryReader, long startOffset)

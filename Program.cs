@@ -20,8 +20,8 @@ internal class Program
         Console.WriteLine("Currently only edits the User Image (QNX6 FS) of the OS.");
         Console.WriteLine("This program is not responsible for any damage caused to your device, use at your own risk.");
         Console.WriteLine("");
-        var options = GetOptions(args);
 
+        var options = GetOptions(args);
         var procedure = args.Length > 0 ? args[0].ToUpper() : null;
         if (procedure != null)
         {
