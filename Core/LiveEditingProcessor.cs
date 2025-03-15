@@ -304,7 +304,7 @@ namespace BlackberrySystemPacker.Core
                 return;
             }
 
-            //_logger.LogInformation($"Executing task for {currentTask.RelativeNodePath} {currentTask.Type}");
+            _logger.LogInformation($"Executing task for {currentTask.RelativeNodePath} {currentTask.Type}");
             var stopWatch = new System.Diagnostics.Stopwatch();
             stopWatch.Start();
             switch (currentTask.Type)
@@ -369,7 +369,7 @@ namespace BlackberrySystemPacker.Core
 
             currentTask.Processed = true;
             stopWatch.Stop();
-            //_logger.LogInformation($"Task for {currentTask.RelativeNodePath} {currentTask.Type} took {Math.Round(stopWatch.Elapsed.TotalSeconds, 1)}s");
+            _logger.LogInformation($"Task for {currentTask.RelativeNodePath} {currentTask.Type} took {Math.Round(stopWatch.Elapsed.TotalSeconds, 1)}s");
         }
 
         private async Task ApplyChanges()
