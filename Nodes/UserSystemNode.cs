@@ -597,7 +597,7 @@ namespace BlackberrySystemPacker.Nodes
                 return;
             }
 
-            if (Name == value)
+            if (GetName() == value)
             {
                 return;
             }
