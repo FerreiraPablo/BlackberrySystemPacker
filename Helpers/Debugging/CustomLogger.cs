@@ -36,7 +36,7 @@ namespace BlackberrySystemPacker.Helpers.Debugging
             return;
             }
             
-            ConsoleColor originalColor = Console.ForegroundColor;
+            ConsoleColor originalColor = ConsoleColor.White;
             
             // Set color based on log level
             Console.ForegroundColor = logLevel switch

@@ -75,6 +75,8 @@ namespace BlackberrySystemPacker.Nodes
 
         public abstract FileSystemNode CreateDirectory(string name = null);
 
+        public abstract FileSystemNode CreateSymlink(FileSystemNode node, string name);
+
         public abstract void Move(FileSystemNode parent);
 
         public abstract void Apply();

@@ -371,15 +371,16 @@ namespace BlackberrySystemPacker.Nodes
             return node;
         }
 
-        public FileSystemNode CreateSymlink(FileSystemNode node, string name)
+        public override FileSystemNode CreateSymlink(FileSystemNode node, string name)
         {
             if (!IsDirectory() || string.IsNullOrWhiteSpace(name))
             {
                 return null;
             }
             var (ownerDirectory, fileName) = EnsurePathAvailability(name);
-            //var symlink = ownerDirectory.Create(17409, fileName, null) as UserSystemNode;
             var linkNode = (node as UserSystemNode);
+            linkNode.LinkNumber++;
+            linkNode.Apply();
 
             var data = new byte[32];
             using var structureWriter = new BinaryWriter(new MemoryStream(data));

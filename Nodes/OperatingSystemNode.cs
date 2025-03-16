@@ -8,7 +8,7 @@ namespace BlackberrySystemPacker.Nodes
     {
         public int Flags { get; set; }
 
-        public override int Size {get => DecompressedSize; set => DecompressedSize = value; }
+        public override int Size { get => DecompressedSize; set => DecompressedSize = value; }
 
         public int NodeNumber { get; set; }
 
@@ -216,6 +216,11 @@ namespace BlackberrySystemPacker.Nodes
         }
 
         public override void Apply()
+        {
+            throw new NotImplementedException();
+        }
+
+        public override FileSystemNode CreateSymlink(FileSystemNode node, string name)
         {
             throw new NotImplementedException();
         }
