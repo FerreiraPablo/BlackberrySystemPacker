@@ -389,10 +389,6 @@ namespace BlackberrySystemPacker.Nodes
             structureWriter.Write((byte)fileName.Length);
             structureWriter.Write(Encoding.ASCII.GetBytes(fileName));
             ownerDirectory.IncludeMetadata(data);
-            //symlink.Size = (byte)fileName.Length;
-            //symlink.Sectors = linkNode.Sectors;
-            //NodeStream.WriteNode(symlink);
-
             return node;
         }
 
