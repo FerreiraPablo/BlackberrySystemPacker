@@ -40,10 +40,29 @@ namespace BlackberrySystemPacker.Core
                 fileInfo.FullSize = signedFileStream.Length;
                 
                 var systemPartition = fileInfo.Partitions.FirstOrDefault(x => x.Type == 8);
-                fileNodes.AddRange(GetOperatingSystemFileNodes(binaryReader, systemPartition.Offset));
+
+                if (systemPartition != null)
+                {
+                    if (systemPartition.Sparsing == null)
+                    {
+                        fileNodes.AddRange(GetOperatingSystemFileNodes(binaryReader, systemPartition.Offset));
+                    } else
+                    {
+                        throw new NotImplementedException("This application does not support sparsed images.");
+                    }
+                }
 
                 var userPartition = fileInfo.Partitions.FirstOrDefault(x => x.Type == 6);
-                fileNodes.AddRange(GetUserFileNodes(binaryReader, userPartition.Offset));
+                if (userPartition != null)
+                {
+                    if (userPartition.Sparsing == null)
+                    {
+                        fileNodes.AddRange(GetUserFileNodes(binaryReader, userPartition.Offset));
+                    } else
+                    {
+                        throw new NotImplementedException("This application does not support sparsed images.");
+                    }
+                }
             }
 
             return fileNodes.Where(x => x != null && x.Name != null).ToList();
