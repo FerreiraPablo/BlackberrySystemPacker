@@ -134,7 +134,6 @@ namespace BlackberrySystemPacker.Core
                     RunTasks();
                 }
             }
-            KeepRunning = false;
         }
 
         public void RunCommand(string command)

@@ -1,12 +1,6 @@
 ﻿using BlackberrySystemPacker.Core;
-using BlackberrySystemPacker.Helpers.Nodes;
 using BlackberrySystemPacker.Nodes;
-using System;
 using System.Collections.Concurrent;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
 
 namespace BlackberrySystemPacker.Helpers.EditingCommands
 {
@@ -37,22 +31,62 @@ namespace BlackberrySystemPacker.Helpers.EditingCommands
                 throw new ArgumentException("Invalid command, please provide a destination path.");
             }
 
-            if (!File.Exists(originalFile))
+            var internalTask = new List<LiveEditingTask>();
+            var isDirectory = File.GetAttributes(originalFile).HasFlag(FileAttributes.Directory);
+
+            if (isDirectory)
             {
-                throw new FileNotFoundException($"The file {originalFile} cannot be found.");
+                var files = Directory.GetFileSystemEntries(originalFile, "*", SearchOption.AllDirectories);
+                var directoryTasks = new List<LiveEditingTask>();
+                var fileTasks = new List<LiveEditingTask>(); ;
+
+                foreach (var file in files)
+                {
+                    var relativePath = destinationPath + "/" + Path.GetRelativePath( Path.Combine(originalFile), file).Replace("\\", "/");
+                    var existingFile = workingNodes.FirstOrDefault(x => x.FullPath == relativePath);
+                    var currentFileIsDirectory = File.GetAttributes(file).HasFlag(FileAttributes.Directory);
+                    if (currentFileIsDirectory)
+                    {
+                        if (existingFile == null)
+                        {
+                            directoryTasks.Add(new LiveEditingTask()
+                            {
+                                RelativeNodePath = relativePath,
+                                Type = LiveEditingTaskType.CreateDirectory
+                            });
+                        }
+                    }
+                    else
+                    {
+                        var content = File.ReadAllBytes(file);
+                        fileTasks.Add(new LiveEditingTask()
+                        {
+                            RelativeNodePath = relativePath,
+                            Type = existingFile != null ? LiveEditingTaskType.Write : LiveEditingTaskType.CreateFile,
+                            Data = content
+                        });
+                    }
+                }
+
+                internalTask.AddRange(directoryTasks);
+                internalTask.AddRange(fileTasks);
+            }
+            else
+            {
+                var content = File.ReadAllBytes(originalFile);
+                var existingFile = workingNodes.FirstOrDefault(x => x.FullPath == destinationPath);
+                internalTask.Add(new LiveEditingTask()
+                {
+                    RelativeNodePath = destinationPath,
+                    Type = existingFile != null ? LiveEditingTaskType.Write : LiveEditingTaskType.CreateFile,
+                    Data = content
+                });
             }
 
-            var content = File.ReadAllBytes(originalFile);
-
-            var existingFile = workingNodes.FirstOrDefault(x => x.FullPath == destinationPath);
-
-            var task = new LiveEditingTask()
+            foreach(var task in internalTask)
             {
-                RelativeNodePath = destinationPath,
-                Type = existingFile != null ? LiveEditingTaskType.Write : LiveEditingTaskType.CreateFile,
-                Data = content
-            };
-            tasks.Enqueue(task);
+                tasks.Enqueue(task);
+            }
         }
     }
 }

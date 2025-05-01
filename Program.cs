@@ -52,6 +52,15 @@ internal class Program
     {
 
         var config = options.GetValueOrDefault("config") ?? options.GetValueOrDefault("c");
+
+        if (!options.Any())
+        {
+            if (File.Exists("config.json"))
+            {
+                config = "config.json";
+            }
+        }
+
         if (config != null)
         {
             if (File.Exists(config))
@@ -317,7 +326,7 @@ internal class Program
         _logger.LogInformation("Unpacked, operation took " + Math.Round(stopWatch.Elapsed.TotalSeconds, 1) + "s");
 
         var liveEditingProcessor = new LiveEditingProcessor(allFiles, _logger, null);
-        liveEditingProcessor.RunScript(patchingScript);
+        liveEditingProcessor.RunScript(patchingScript + "\nquit\n");
         liveEditingProcessor.Start().Wait();
         return outputFile;
     }

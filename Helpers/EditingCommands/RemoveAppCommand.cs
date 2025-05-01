@@ -1,14 +1,9 @@
 ﻿using BlackberrySystemPacker.Core;
-using BlackberrySystemPacker.Helpers.EditingCommands;
 using BlackberrySystemPacker.Nodes;
 using Microsoft.Extensions.Logging;
-using System;
 using System.Collections.Concurrent;
-using System.Collections.Generic;
 using System.Diagnostics;
-using System.Linq;
 using System.Text;
-using System.Threading.Tasks;
 
 namespace BlackberrySystemPacker.Helpers.EditingCommands
 {
@@ -26,7 +21,10 @@ namespace BlackberrySystemPacker.Helpers.EditingCommands
             {
                 throw new ArgumentException("Invalid removeapp command, please provide the app package id or package id's splitted by comma");
             }
-            var deleteMatches = args.Skip(1).Select(x => x.Trim()).ToList();
+            var deleteMatches = args.Skip(1)
+                .Select(x => x.Trim())
+                .Where(x => !string.IsNullOrWhiteSpace(x))
+                .ToList();
 
 
             if (!deleteMatches.Any())
