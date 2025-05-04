@@ -93,12 +93,14 @@ namespace BlackberrySystemPacker.Core
         {
             binaryReader.BaseStream.Seek(startOffset, SeekOrigin.Begin);
             byte[] header = binaryReader.ReadBytes(8000);
+            var magic = Encoding.UTF8.GetString(header, 0, 4);
 
-            return header[0] == 102 && header[1] == 115 && header[2] == 45
+
+            return magic == "rimh" || (header[0] == 102 && header[1] == 115 && header[2] == 45
                 && header[3] == 111 && header[4] == 115 && header[5] == 32 && header[6] == 32 && header[7] == 32
                 || header[0] == 102 && header[1] == 115 && header[2] == 45 && header[3] == 114
                 && header[4] == 97 && header[5] == 100 && header[6] == 105 && header[7] == 111
-                || header[4128] == 114 && header[4129] == 45 && header[4130] == 99 && header[4131] == 45 && header[4132] == 102 && header[4133] == 45 && header[4134] == 115 && Encoding.ASCII.GetString(header, 8, 8).Trim() == "fs-os";
+                || header[4128] == 114 && header[4129] == 45 && header[4130] == 99 && header[4131] == 45 && header[4132] == 102 && header[4133] == 45 && header[4134] == 115 && Encoding.ASCII.GetString(header, 8, 8).Trim() == "fs-os");
         }
     }
 }

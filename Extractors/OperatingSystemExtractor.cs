@@ -13,7 +13,7 @@ namespace BlackberrySystemPacker.Extractors
         private long _startPosition;
 
         private BinaryReader _fileSystemBinaryReader;
-        public OperatingSystemNode VerifierFile { get; set; }
+        public OperatingSystemNode VerifierFile { get; set; } = null;
 
         public List<FileSystemNode> GetNodes(BinaryReader reader, long startPosition)
         {
@@ -45,6 +45,9 @@ namespace BlackberrySystemPacker.Extractors
             var nodes = GetFileNodes(ReadNodes(_nodesOffset, 1));
 
             var imageHash = GetImageHash();
+
+            if (VerifierFile == null) return [.. nodes];
+
             var verifierNode = new VerifierNode(VerifierFile);
 
             var same = imageHash == verifierNode.Hash;
@@ -111,8 +114,6 @@ namespace BlackberrySystemPacker.Extractors
                 node.Stream = _fileSystemBinaryReader.BaseStream;
                 node.LocalPosition = localPosition;
                 node.PartitionOffset = _startPosition;
-
-
 
                 //var dasdo = _fileSystemBinaryReader.ReadUInt16();
                 _fileSystemBinaryReader.BaseStream.Seek(definitionPosition, SeekOrigin.Begin);

@@ -26,6 +26,11 @@ namespace BlackberrySystemPacker.Helpers.RCFS
 
         public void Read()
         {
+            if (OriginalNode == null)
+            {
+                return;
+            }
+
             var fileData = OriginalNode.Read();
             var sha256 = SHA256.Create();
             var hash = sha256.ComputeHash(fileData);
@@ -53,6 +58,11 @@ namespace BlackberrySystemPacker.Helpers.RCFS
 
         public void Write()
         {
+            if (OriginalNode == null)
+            {
+                return;
+            }
+
             using var memoryStream = new MemoryStream();
             using var writer = new BinaryWriter(memoryStream);
             var magicByte = Encoding.UTF8.GetBytes(Magic);

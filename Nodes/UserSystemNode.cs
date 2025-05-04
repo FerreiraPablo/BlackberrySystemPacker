@@ -310,7 +310,7 @@ namespace BlackberrySystemPacker.Nodes
 
             var path = name.Replace(FullPath, "").Split("/");
             var fileName = path[path.Length - 1];
-            var directories = path.Take(path.Length - 1).Where(x => x != Name && !string.IsNullOrWhiteSpace(x));
+            var directories = path.Take(path.Length - 1).Where(x => x != Name && !string.IsNullOrWhiteSpace(x)).ToArray();
             var checkedPath = "";
             var ownerDirectory = this;
             foreach (var directory in directories)
@@ -339,12 +339,6 @@ namespace BlackberrySystemPacker.Nodes
                 return null;
             }
 
-            if (NodeStream.GetUnallocatedBlock() == -1)
-            {
-                Console.WriteLine("No space available for data storage");
-                return null;
-            }
-
             var (ownerDirectory, fileName) = EnsurePathAvailability(name);
             var file = ownerDirectory.Create(33279, fileName, data); ;
             return file;
@@ -359,29 +353,22 @@ namespace BlackberrySystemPacker.Nodes
                 return null;
             }
 
-            if (NodeStream.GetUnallocatedBlock() == -1)
-            {
-                Console.WriteLine("No space available for data storage");
-                return null;
-            }
-
             var (ownerDirectory, fileName) = EnsurePathAvailability(name);
-
-            var node = Create(16895, fileName, null) as UserSystemNode;
+            var node = ownerDirectory.Create(16895, fileName, null) as UserSystemNode;
             return node;
         }
 
         public override FileSystemNode CreateSymlink(FileSystemNode node, string name)
         {
-            if (!IsDirectory() || string.IsNullOrWhiteSpace(name))
+            if (string.IsNullOrWhiteSpace(name))
             {
                 return null;
             }
-            var (ownerDirectory, fileName) = EnsurePathAvailability(name);
             var linkNode = (node as UserSystemNode);
             linkNode.LinkNumber++;
             linkNode.Apply();
 
+            var (ownerDirectory, fileName) = EnsurePathAvailability(name);
             var data = new byte[32];
             using var structureWriter = new BinaryWriter(new MemoryStream(data));
             structureWriter.Seek(0, SeekOrigin.Begin);

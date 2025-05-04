@@ -11,6 +11,7 @@ namespace BlackberrySystemPacker.Core
         Delete,
         CreateFile,
         CreateDirectory,
+        CreateSymlink,
         SetPermissions,
         SetGroup,
         SetUser,
@@ -42,8 +43,8 @@ namespace BlackberrySystemPacker.Core
 
     public class LiveEditingProcessor
     {
-        private List<EditingCommand> commands = new List<EditingCommand>()
-        {
+        private List<EditingCommand> commands =
+        [
             new ChangeDirectoryCommand(),
             new ChangeGroupCommand(),
             new ChangeModeCommand(),
@@ -52,14 +53,16 @@ namespace BlackberrySystemPacker.Core
             new ContentReplaceCommand(),
             new CreateDirectoryCommand(),
             new CurrentWorkDirectoryCommand(),
+            new InstallPackageCommand(),
+            new LinkCommand(),
             new ListCommand(),
             new PermissionsCommand(),
             new PushCommand(),
             new RemoveAppCommand(),
             new RemoveCommand(),
             new RemoveLineCommand(),
-            new TouchCommand(),
-        };
+            new TouchCommand()
+        ];
 
         public bool KeepRunning = true;
 
@@ -139,6 +142,11 @@ namespace BlackberrySystemPacker.Core
         public void RunCommand(string command)
         {
             if(string.IsNullOrWhiteSpace(command))
+            {
+                return;
+            }
+
+            if (command.StartsWith("--") || command.StartsWith("#"))
             {
                 return;
             }
@@ -314,9 +322,21 @@ namespace BlackberrySystemPacker.Core
                         _workingNodes.Add(createdNode);
                     break;
                 case LiveEditingTaskType.CreateDirectory:
-                    var createdDirectoryNode = requiredFile.CreateDirectory(currentTask.RelativeNodePath);
+                   var createdDirectoryNode = requiredFile.CreateDirectory(currentTask.RelativeNodePath);
                     if (createdDirectoryNode != null)
                         _workingNodes.Add(createdDirectoryNode);
+                    break;
+                case LiveEditingTaskType.CreateSymlink:
+                    var linkNode = _workingNodes.FirstOrDefault(x => x.FullPath == currentTask.RelativeNodePath);
+                    if (linkNode == null)
+                    {
+                        _logger.LogError($"Link node {currentTask.RelativeNodePath} not found for {currentTask.Name}");
+                    }
+
+                    var symlinkParent = GetExistingParent(currentTask.Name);
+                    var symlinkNode = symlinkParent.CreateSymlink(linkNode, currentTask.Name);
+                    if (symlinkNode != null)
+                        _workingNodes.Add(symlinkNode);
                     break;
                 case LiveEditingTaskType.SetPermissions:
                     requiredFile.SetPermissions(currentTask.Permissions);
