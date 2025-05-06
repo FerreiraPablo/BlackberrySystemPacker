@@ -16,7 +16,7 @@ internal class Program
     [DynamicDependency(DynamicallyAccessedMemberTypes.All, typeof(Program))]
     private static void Main(string[] args)
     {
-        Console.WriteLine("Blackberry Signed Image Patcher V0.0.1 BETA - By Pablo Ferreira");
+        Console.WriteLine("Blackberry Signed Image Patcher V0.0.10 BETA - By Pablo Ferreira");
         Console.WriteLine("Currently only edits the User Image (QNX6 FS) of the OS.");
         Console.WriteLine("This program is not responsible for any damage caused to your device, use at your own risk.");
         Console.WriteLine("");
@@ -99,6 +99,8 @@ internal class Program
         var systemNodes = options.GetValueOrDefault("systemnodes") ?? options.GetValueOrDefault("sn");
         var skipWorkspaceBuild = options.GetValueOrDefault("skipworkspace") ?? options.GetValueOrDefault("sw");
         var script = options.GetValueOrDefault("script") ?? options.GetValueOrDefault("s");
+        var autoloaderOutputFile = options.GetValueOrDefault("autoloaderoutputfile") ?? options.GetValueOrDefault("aof");
+
         var patchingScript = PatchingScripts.ImageCleanupScript;
         if (script != null)
         {
@@ -201,10 +203,11 @@ internal class Program
                 break;
             case "HELP":
                 Console.WriteLine($"Usage: {executableFile} [AUTOPATCH|EDIT|HELP] [OPTIONS]");
+                Console.WriteLine("Note: If there is 'config.json' valid and available on the working directory, this one will be picked up as configuration.");
                 Console.WriteLine("");
                 Console.WriteLine("");
                 Console.WriteLine("Modes");
-                Console.WriteLine("AUTOPATCH - Patch a signed OS file to remove generaly recognizable bloatware or obsolete apps.");
+                Console.WriteLine("AUTOPATCH - Patch a signed OS file to remove generally recognizable bloatware or obsolete apps.");
                 Console.WriteLine("EDIT - Export a signed OS file to a workspace directory for editing live editing.");
                 Console.WriteLine("HELP - Shows this documentation.");
                 Console.WriteLine("");
@@ -212,13 +215,15 @@ internal class Program
                 Console.WriteLine("Options:");
                 Console.WriteLine("--config|c [path]: \nPath to config file that fills any of the parameters defined for this program, for ease of use.");
                 Console.WriteLine("");
+                Console.WriteLine("--tasksFile|tf [path]: \nPath to as tasks file, which defines multiple instances of configuration for batch purposes.");
+                Console.WriteLine("");
                 Console.WriteLine("--os [path] - REQUIRED: \nPath to the signed OS file.");
                 Console.WriteLine("");
                 Console.WriteLine("--radio [path] - (Only for generating an autoloader with --autoloader): \nPath to the signed Radio file.");
                 Console.WriteLine("");
                 Console.WriteLine("--outputDir [path]: \nPath to the output directory, if undefined the current directory will be used.");
                 Console.WriteLine("");
-                Console.WriteLine("--outputFile [path]: \n Path to the output directory, if undefined it will be created automatically on the output directory.");
+                Console.WriteLine("--outputFile [path]: \n Path to the output file, if undefined it will be created automatically on the output directory.");
                 Console.WriteLine("");
                 Console.WriteLine("--workspace [path] - (Only for EDIT mode) \nPath to the workspace directory, where all files will be exported for editing, if undefined a workspace directory will be created on the output directory.");
                 Console.WriteLine("");
@@ -231,6 +236,8 @@ internal class Program
                 Console.WriteLine("--systemnodes: \nIt will include not R/W nodes into your workspace (Editing this files can most times break the system, and serves no purpose, enable this if you know what you're doing).");
                 Console.WriteLine("");
                 Console.WriteLine("--script: \nYou can use this with AUTOPATCH to use a custom patching script, if not defined the default cleanup script will be used.");
+                Console.WriteLine("");
+                Console.WriteLine("--autoloaderOutputFile: \nThe name of the autoloader or path where it should be generated.");
                 Console.WriteLine("");
                 Console.WriteLine("");
                 Console.WriteLine("Examples:");
@@ -258,6 +265,11 @@ internal class Program
         if (autoloader != null)
         {
             var autoloaderPath = Path.Combine(outputDirectory, Path.GetFileNameWithoutExtension(radioFile).Replace("Radio_", "") + "-MOD.exe");
+            if (autoloaderOutputFile != null)
+            {
+                autoloaderPath = Path.IsPathFullyQualified(autoloaderOutputFile) ? autoloaderOutputFile : Path.Combine(outputDirectory, autoloaderOutputFile);
+            }
+
             _logger.LogInformation("Creating autoloader at " + autoloaderPath);
             var stopWatch = new Stopwatch();
             stopWatch.Start();
@@ -326,6 +338,12 @@ internal class Program
         _logger.LogInformation("Unpacking image...");
         var extractor = new SignedImageNodeUnpacker();
         var allFiles = extractor.GetUnpackedNodes(modifiedPackage);
+
+        if (!_keepSystemNodes)
+        {
+            allFiles = allFiles.Where(x => x.IsUserNode).ToList();
+        }
+
         stopWatch.Stop();
         _logger.LogInformation("Unpacked, operation took " + Math.Round(stopWatch.Elapsed.TotalSeconds, 1) + "s");
 
