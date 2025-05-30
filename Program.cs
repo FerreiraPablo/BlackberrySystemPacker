@@ -16,7 +16,7 @@ internal class Program
     [DynamicDependency(DynamicallyAccessedMemberTypes.All, typeof(Program))]
     private static void Main(string[] args)
     {
-        Console.WriteLine("Blackberry Signed Image Patcher V0.0.10 BETA - By Pablo Ferreira");
+        Console.WriteLine("Blackberry Signed Image Patcher V0.0.11 BETA - By Pablo Ferreira");
         Console.WriteLine("Currently only edits the User Image (QNX6 FS) of the OS.");
         Console.WriteLine("This program is not responsible for any damage caused to your device, use at your own risk.");
         Console.WriteLine("");
@@ -29,6 +29,11 @@ internal class Program
         else
         {
             var tasksFile = options.GetValueOrDefault("tasksFile") ?? options.GetValueOrDefault("tf");
+            if (tasksFile == null && File.Exists("tasks.json"))
+            {
+                tasksFile = "tasks.json";
+            }
+
             if (tasksFile != null)
             {
                 if (File.Exists(tasksFile))

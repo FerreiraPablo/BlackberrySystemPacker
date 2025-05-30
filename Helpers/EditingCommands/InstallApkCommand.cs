@@ -11,12 +11,12 @@ using BlackberrySystemPacker.Nodes;
 
 namespace BlackberrySystemPacker.Helpers.EditingCommands
 {
-    public class InstallPackageCommand: EditingCommand
+    public class InstallApkCommand: EditingCommand
     {
         public override string Description { get; set; } = "Installs a BAR or APK File into the OS.";
 
 
-        public InstallPackageCommand() : base("install", "installpackage")
+        public InstallApkCommand() : base("installapk")
         {
         }
 

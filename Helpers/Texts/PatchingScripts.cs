@@ -16,7 +16,10 @@ replace var/pps/services/bbads/configuration www.blackberry.com/app_includes/asd
 replace var/pps/system/ota/serverurls cs.sl.blackberry.com service.waitberry.com
 replace var/pps/system/ota/serverurls cp256.pushapi.na.blackberry.com service.waitberry.com
 replace var/pps/system/ota/serverurls cse.dcs.blackberry.com service.waitberry.com
-replace var/pps/system/ota/serverurls cse.doc.blackberry.com service.waitberry.com";
+replace var/pps/system/ota/serverurls cse.doc.blackberry.com service.waitberry.com
+touch /accounts/1000/_startup_data/sys/bbid/doneOobe  
+touch /accounts/1000/sys/bbid/doneOobe  
+";
 
     }
 }
