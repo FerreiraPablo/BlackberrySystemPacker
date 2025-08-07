@@ -44,7 +44,7 @@ namespace BlackberrySystemPacker.Helpers.EditingCommands
             using var archive = new ZipArchive(fileStream, ZipArchiveMode.Read);
 
 
-            var packageIdentity = "test";
+            var packageIdentity = $"apk{new Random().Next(99999999)}";
             var packageContentLocation = $"var/android/{packageIdentity}";
 
             var directoryTasks = new List<LiveEditingTask>();
