@@ -9,6 +9,7 @@ namespace BlackberrySystemPacker.Helpers.Texts
     public static class PatchingScripts
     {
         public const string ImageCleanupScript = @"
+nodesource user
 removeapp com.twitter com.evernote com.linkedin com.tcs.maps com.rim.bb.app.facebook com.rim.bb.app.retaildemoshim sys.socialconnect.linkedin sys.socialconnect.twitter sys.socialconnect.youtube sys.socialconnect.facebook sys.cfs.box sys.cfs.dropbox sys.uri.youtube sys.weather sys.bbm sys.appworld sys.howto sys.help sys.firstlaunch sys.deviceswitch sys.paymentsystem sys.setupbuffet
 replace var/pps/system/navigator/config autorun::1 autorun::0
 replace var/pps/system/appconfig/sys.settings false true

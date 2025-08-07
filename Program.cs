@@ -9,17 +9,21 @@ using System.Diagnostics.CodeAnalysis;
 
 internal class Program
 {
-    private static bool _keepSystemNodes = false;
-
     private static ILogger _logger = new CustomLogger("BlackberrySystemPacker", LogLevel.Information);
 
     [DynamicDependency(DynamicallyAccessedMemberTypes.All, typeof(Program))]
     private static void Main(string[] args)
     {
-        Console.WriteLine("Blackberry Signed Image Patcher V0.0.11 BETA - By Pablo Ferreira");
+
+        Console.WriteLine("Blackberry Signed Image Patcher V0.0.12 BETA - By Pablo Ferreira");
         Console.WriteLine("Currently only edits the User Image (QNX6 FS) of the OS.");
         Console.WriteLine("This program is not responsible for any damage caused to your device, use at your own risk.");
         Console.WriteLine("");
+
+        Directory.SetCurrentDirectory("C:\\Users\\habbo\\Documents\\BBDev\\Devimg");
+
+        args = ["EDIT", "--os", @"C:\Users\habbo\Documents\BBDev\Images\passport\OS_10.3.3.3216.qc8960.factory_sfi_hybrid_qc8974.User-OS-IFS.Signed"];
+
         var options = GetOptions(args);
         var procedure = args.Length > 0 ? args[0].ToUpper() : null;
         if (procedure != null)
@@ -38,6 +42,7 @@ internal class Program
             {
                 if (File.Exists(tasksFile))
                 {
+                    _logger.LogInformation("Loading tasks file " + tasksFile);
                     var tasks = File.ReadAllText(tasksFile);
                     var taskList = JsonConvert.DeserializeObject<List<Dictionary<string, string>>>(tasks);
                     foreach (var task in taskList)
@@ -101,7 +106,6 @@ internal class Program
         var workspaceDir = options.GetValueOrDefault("workspace") ?? options.GetValueOrDefault("w") ?? Path.Combine(outputDirectory, "Workspace");
         var autoloader = options.GetValueOrDefault("autoloader") ?? options.GetValueOrDefault("al");
         var writeInput = options.GetValueOrDefault("writeinput") ?? options.GetValueOrDefault("wi");
-        var systemNodes = options.GetValueOrDefault("systemnodes") ?? options.GetValueOrDefault("sn");
         var skipWorkspaceBuild = options.GetValueOrDefault("skipworkspace") ?? options.GetValueOrDefault("sw");
         var script = options.GetValueOrDefault("script") ?? options.GetValueOrDefault("s");
         var autoloaderOutputFile = options.GetValueOrDefault("autoloaderoutputfile") ?? options.GetValueOrDefault("aof");
@@ -118,11 +122,6 @@ internal class Program
                 _logger.LogError("Script file does not exist.");
                 return;
             }
-        }
-
-        if(systemNodes != null)
-        {
-            _keepSystemNodes = true;
         }
 
         if (writeInput != null)
@@ -312,7 +311,6 @@ internal class Program
         return options;
     }
 
-
     public static Stream GetWorkStream(string originalFile, string outputFile)
     {
         Stopwatch stopwatch = new Stopwatch();
@@ -334,7 +332,7 @@ internal class Program
         return modifiedPackage;
     }
 
-    public static string Patch(string patchingScript, string originalFile, string outputFile = null)
+    public static string Patch(string patchingScript, string originalFile, string outputFile = null, bool autoQuit = true)
     {
         var modifiedPackage = GetWorkStream(originalFile, outputFile);
 
@@ -344,16 +342,12 @@ internal class Program
         var extractor = new SignedImageNodeUnpacker();
         var allFiles = extractor.GetUnpackedNodes(modifiedPackage);
 
-        if (!_keepSystemNodes)
-        {
-            allFiles = allFiles.Where(x => x.IsUserNode).ToList();
-        }
 
         stopWatch.Stop();
         _logger.LogInformation("Unpacked, operation took " + Math.Round(stopWatch.Elapsed.TotalSeconds, 1) + "s");
 
         var liveEditingProcessor = new LiveEditingProcessor(allFiles, _logger, null);
-        liveEditingProcessor.RunScript(patchingScript + "\nquit\n");
+        liveEditingProcessor.RunScript(patchingScript + (autoQuit ? "\nquit\n" : ""));
         liveEditingProcessor.Start().Wait();
         return outputFile;
     }
@@ -368,11 +362,6 @@ internal class Program
         var extractor = new SignedImageNodeUnpacker();
         var files = extractor.GetUnpackedNodes(modifiedPackage);
         var editableFiles = files.Where(x => !x.Name.Contains("\0")).ToList();
-
-        if (!_keepSystemNodes)
-        {
-            editableFiles = editableFiles.Where(x => x.IsUserNode).ToList();
-        }
 
         stopWatch.Stop();
         _logger.LogInformation("Unpacked, operation took " + Math.Round(stopWatch.Elapsed.TotalSeconds, 1) + "s");
