@@ -50,6 +50,7 @@ namespace BlackberrySystemPacker.Core
             new ChangeModeCommand(),
             new ChangePermissionsCommand(),
             new ChangeUserCommand(),
+            new ConcatenateCommand(),
             new ContentReplaceCommand(),
             new CreateDirectoryCommand(),
             new CurrentWorkDirectoryCommand(),
@@ -70,13 +71,19 @@ namespace BlackberrySystemPacker.Core
         public bool Pause = false;
 
         private ConcurrentQueue<LiveEditingTask> _tasks = new();
+
+        private List<FileSystemNode> _originalNodes;
+        
         private List<FileSystemNode> _workingNodes;
+        
         private string _sourceDirectory;
+
         private readonly ILogger _logger;
 
         public LiveEditingProcessor(List<FileSystemNode> workingNodes, ILogger logger, string sourceDirectory = null)
         {
-            _workingNodes = workingNodes;
+            _originalNodes = workingNodes;
+            SwitchNodeSource("user");
             _sourceDirectory = sourceDirectory;
             _logger = logger;
             foreach (var commandDef in commands)
@@ -85,19 +92,20 @@ namespace BlackberrySystemPacker.Core
             }
         }
 
-        public async Task Start()
+        public async Task Start(bool workspaceWatch = true)
         {
             if(!string.IsNullOrEmpty(_sourceDirectory))
             {
                 _logger.LogInformation("Started live editing processor.");
                 _logger.LogInformation($"You can go to the workspace in {_sourceDirectory} and create, delete or edit any file.");
                 _logger.LogInformation("Write 'help' or enter for additional commands.");
+                _logger.LogInformation("Write 'nodesource all' to user all nodes, 'nodesource user' to use user nodes, or 'nodesource system' to use system nodes.");
+                _logger.LogInformation("By default, only user nodes are used for live editing, to prevent accidental changes to system files.");
                 _logger.LogInformation("Write 'quit' then [ENTER] to stop the processor, and end the live editing session...");
             }
 
-
             await Task.WhenAll(
-            ApplyChanges(),
+            workspaceWatch ? ApplyChanges() : Task.CompletedTask,
             Task.Factory.StartNew(() =>
             {
                 while (KeepRunning)
@@ -140,6 +148,25 @@ namespace BlackberrySystemPacker.Core
             }
         }
 
+        public void SwitchNodeSource(string nodeSource)
+        {
+            switch (nodeSource)
+            {
+                default:
+                    _logger.LogError("Invalid node type, please use 'all', 'user' or 'system'.");
+                    return;
+                case "all":
+                    _workingNodes = new List<FileSystemNode>(_originalNodes);
+                    break;
+                case "user":
+                    _workingNodes = _originalNodes.Where(x => x.IsUserNode).ToList();
+                    break;
+                case "system":
+                    _workingNodes = _originalNodes.Where(x => !x.IsUserNode).ToList();
+                    break;
+            }
+        }
+
         public void RunCommand(string command)
         {
             if(string.IsNullOrWhiteSpace(command))
@@ -169,6 +196,22 @@ namespace BlackberrySystemPacker.Core
                 {
                     _logger.LogInformation($"{commandDef.Aliases[0]}: {commandDef.Description}");
                 }
+                _logger.LogInformation("You can also use 'nodesource all', 'nodesource user' or 'nodesource system' to switch between node sources.");
+                _logger.LogInformation("You can use 'quit' to stop the live editing processor.");
+                return;
+            }
+
+            if(commandAlias == "nodesource")
+            {
+                var args = parts = parts.Skip(1).ToArray();
+                if (args.Length < 1)
+                {
+                    _logger.LogError("Please provide a node source (all, user, system).");
+                    return;
+                }
+
+                var nodeSource = args[0].ToLower();
+                SwitchNodeSource(nodeSource);
                 return;
             }
 
@@ -248,8 +291,15 @@ namespace BlackberrySystemPacker.Core
                     }
 
                     var expectedPath = path;
-                    File.WriteAllBytes(expectedPath, data);
-                    File.SetLastWriteTime(expectedPath, node.CreationDate);
+                    try
+                    {
+                        File.WriteAllBytes(expectedPath, data);
+                        File.SetLastWriteTime(expectedPath, node.CreationDate);
+                    }
+                    catch (Exception ex)
+                    {
+                        _logger.LogError($"Failed to create file {expectedPath}: {ex.Message}");
+                    }
                 }
             }
 

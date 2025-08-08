@@ -68,7 +68,7 @@ namespace BlackberrySystemPacker.Core
             return fileNodes.Where(x => x != null && x.Name != null).ToList();
         }
 
-        private List<FileSystemNode> GetOperatingSystemFileNodes(BinaryReader binaryReader, long startOffset)
+        public List<FileSystemNode> GetOperatingSystemFileNodes(BinaryReader binaryReader, long startOffset)
         {
 
             if (ValidateFileSystem(binaryReader, startOffset))
@@ -81,7 +81,7 @@ namespace BlackberrySystemPacker.Core
             return new List<FileSystemNode>();
         }
 
-        private List<FileSystemNode> GetUserFileNodes(BinaryReader binaryReader, long startOffset)
+        public List<FileSystemNode> GetUserFileNodes(BinaryReader binaryReader, long startOffset)
         {
             var nodeList = new List<FileSystemNode>();
             var userSystemExtractor = new UserSystemExtractor();

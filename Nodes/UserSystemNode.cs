@@ -53,6 +53,11 @@ namespace BlackberrySystemPacker.Nodes
 
                 do
                 {
+                    if(sectorSize < 0)
+                    {
+                        break;
+                    }
+
                     int contentSize = Math.Min(buffer.Length, sectorSize);
                     binaryReader.Read(buffer, 0, contentSize);
                     sectorSize -= contentSize;

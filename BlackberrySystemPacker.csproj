@@ -16,6 +16,7 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <None Remove="Core\LiveEditingProcessor.cs~RF3a0c4a.TMP" />
     <None Remove="Core\SignedImageNodeUnpacker.cs~RF48d6ca.TMP" />
   </ItemGroup>
   <ItemGroup>
