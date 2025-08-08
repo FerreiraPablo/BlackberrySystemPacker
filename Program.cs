@@ -20,10 +20,6 @@ internal class Program
         Console.WriteLine("This program is not responsible for any damage caused to your device, use at your own risk.");
         Console.WriteLine("");
 
-        Directory.SetCurrentDirectory("C:\\Users\\habbo\\Documents\\BBDev\\Devimg");
-
-        args = ["EDIT", "--os", @"C:\Users\habbo\Documents\BBDev\Images\passport\OS_10.3.3.3216.qc8960.factory_sfi_hybrid_qc8974.User-OS-IFS.Signed"];
-
         var options = GetOptions(args);
         var procedure = args.Length > 0 ? args[0].ToUpper() : null;
         if (procedure != null)
