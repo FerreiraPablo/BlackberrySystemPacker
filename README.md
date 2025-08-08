@@ -20,7 +20,7 @@ Source code published for the first time on 3/3/2025
 ## Requirements
 
 - .NET 8.0 SDK or Runtime
-- Windows, macOS, or Linux operating system
+- Windows, or Linux operating system
 
 ## Installation
 
