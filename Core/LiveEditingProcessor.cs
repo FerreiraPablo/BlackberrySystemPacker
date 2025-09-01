@@ -82,7 +82,7 @@ namespace BlackberrySystemPacker.Core
 
         public LiveEditingProcessor(List<FileSystemNode> workingNodes, ILogger logger, string sourceDirectory = null)
         {
-            _originalNodes = workingNodes;
+            _originalNodes = workingNodes.Where(x => x.IsUserNode).ToList();
             SwitchNodeSource("user");
             _sourceDirectory = sourceDirectory;
             _logger = logger;
@@ -135,7 +135,7 @@ namespace BlackberrySystemPacker.Core
             var lines = script.Split("\n");
             foreach (var line in lines)
             {
-                if(string.IsNullOrWhiteSpace(line))
+                if(string.IsNullOrWhiteSpace(line) || line.StartsWith("#"))
                 {
                     continue;
                 }
@@ -150,7 +150,7 @@ namespace BlackberrySystemPacker.Core
 
         public void SwitchNodeSource(string nodeSource)
         {
-            switch (nodeSource)
+            switch (nodeSource.ToLower())
             {
                 default:
                     _logger.LogError("Invalid node type, please use 'all', 'user' or 'system'.");
@@ -358,6 +358,8 @@ namespace BlackberrySystemPacker.Core
             _logger.LogInformation($"Executing task for {currentTask.RelativeNodePath} {currentTask.Type}");
             var stopWatch = new System.Diagnostics.Stopwatch();
             stopWatch.Start();
+
+            var nodesToInclude = new List<FileSystemNode>() { };
             switch (currentTask.Type)
             {
                 case LiveEditingTaskType.Write:
@@ -370,12 +372,12 @@ namespace BlackberrySystemPacker.Core
                 case LiveEditingTaskType.CreateFile:
                     var createdNode = requiredFile.CreateFile(currentTask.RelativeNodePath, currentTask.Data);
                     if (createdNode != null)
-                        _workingNodes.Add(createdNode);
+                        nodesToInclude.Add(createdNode);
                     break;
                 case LiveEditingTaskType.CreateDirectory:
                    var createdDirectoryNode = requiredFile.CreateDirectory(currentTask.RelativeNodePath);
                     if (createdDirectoryNode != null)
-                        _workingNodes.Add(createdDirectoryNode);
+                        nodesToInclude.Add(createdDirectoryNode);
                     break;
                 case LiveEditingTaskType.CreateSymlink:
                     var linkNode = _workingNodes.FirstOrDefault(x => x.FullPath == currentTask.RelativeNodePath);
@@ -387,7 +389,7 @@ namespace BlackberrySystemPacker.Core
                     var symlinkParent = GetExistingParent(currentTask.Name);
                     var symlinkNode = symlinkParent.CreateSymlink(linkNode, currentTask.Name);
                     if (symlinkNode != null)
-                        _workingNodes.Add(symlinkNode);
+                        nodesToInclude.Add(symlinkNode);
                     break;
                 case LiveEditingTaskType.SetPermissions:
                     requiredFile.SetPermissions(currentTask.Permissions);
@@ -428,6 +430,19 @@ namespace BlackberrySystemPacker.Core
                         requiredFile.Apply();
                     }
                     break;
+            }
+
+            foreach (var node in nodesToInclude)
+            {
+                if (!_workingNodes.Contains(node))
+                {
+                    _workingNodes.Add(node);
+                }
+
+                if(!_originalNodes.Contains(node))
+                {
+                    _originalNodes.Add(node);
+                }
             }
 
             stopWatch.Stop();
