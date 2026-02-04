@@ -14,12 +14,10 @@ internal class Program
     [DynamicDependency(DynamicallyAccessedMemberTypes.All, typeof(Program))]
     private static void Main(string[] args)
     {
-
-        Console.WriteLine("Blackberry Signed Image Patcher V0.0.12 BETA - By Pablo Ferreira");
+        Console.WriteLine("Blackberry Signed Image Patcher V0.0.16 BETA - By Pablo Ferreira");
         Console.WriteLine("Currently only edits the User Image (QNX6 FS) of the OS.");
         Console.WriteLine("This program is not responsible for any damage caused to your device, use at your own risk.");
         Console.WriteLine("");
-
         var options = GetOptions(args);
         var procedure = args.Length > 0 ? args[0].ToUpper() : null;
         if (procedure != null)
@@ -91,7 +89,7 @@ internal class Program
             }
         }
 
-        string[] validProcedures = ["AUTOPATCH", "EDIT", "HELP"];
+        string[] validProcedures = ["AUTOPATCH", "EDIT", "EXTRACT", "HELP"];
         var procedure = options.GetValueOrDefault("procedure") ?? options.GetValueOrDefault("p") ?? "HELP";
         procedure = validProcedures.Contains(procedure.ToUpper()) ? procedure.ToUpper() : "HELP";
 
@@ -200,6 +198,9 @@ internal class Program
                 break;
             case "EDIT":
                 modifiedFile = Export(workspaceDir, skipWorkspaceBuild == null, signedFile, outputFile);
+                break;
+            case "EXTRACT":
+                _ = Extract(workspaceDir, signedFile);
                 break;
             case "HELP":
                 Console.WriteLine($"Usage: {executableFile} [AUTOPATCH|EDIT|HELP] [OPTIONS]");
@@ -370,5 +371,26 @@ internal class Program
         editingProcessor.Start().Wait();
         modifiedPackage.Close();
         return outputFile;
+    }
+
+    public static string Extract(string outputDirectory, string originalFile)
+    {
+        var modifiedPackage = GetWorkStream(originalFile, originalFile);
+        var stopWatch = new Stopwatch();
+        stopWatch.Start();
+
+        _logger.LogInformation("Unpacking image...");
+        var extractor = new SignedImageNodeUnpacker();
+        var files = extractor.GetUnpackedNodes(modifiedPackage);
+        var editableFiles = files.Where(x => !x.Name.Contains("\0")).ToList();
+
+        stopWatch.Stop();
+        _logger.LogInformation("Unpacked, operation took " + Math.Round(stopWatch.Elapsed.TotalSeconds, 1) + "s");
+        var editingProcessor = new LiveEditingProcessor(editableFiles, _logger, outputDirectory);
+        editingProcessor.SwitchNodeSource("all");
+
+        editingProcessor.Build();
+        modifiedPackage.Close();
+        return originalFile;
     }
 }
