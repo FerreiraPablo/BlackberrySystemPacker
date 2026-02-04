@@ -27,14 +27,13 @@
                 var initialPosition = stream.Position;
                 targetStream.Seek(0, SeekOrigin.Begin);
 
-                var start = Sparsing.Areas.First().Item1;
-                foreach (var area in Sparsing.Areas)
-                {
-                    long offset = (area.Item1 - start) * Sparsing.BlockSize;
-                    var size = area.Item2 * Sparsing.BlockSize;
-
-                    stream.Seek(Sparsing.Offset + offset, SeekOrigin.Begin);
+                foreach (var area in Sparsing.Areas) { 
+                
+                    var gapBlocks = (long)area.StartBlock;
+                    long offset = ((long)gapBlocks * Sparsing.BlockSize);
+                    var size = (long)area.BlockCount * Sparsing.BlockSize;
                     var buffer = new byte[size];
+                    stream.Seek(offset, SeekOrigin.Begin);
                     stream.Read(buffer, 0, buffer.Length);
                     targetStream.Write(buffer, 0, buffer.Length);
                 }

@@ -21,16 +21,17 @@ namespace BlackberrySystemPacker.Helpers.EditingCommands
         public override void Execute(ConcurrentQueue<LiveEditingTask> tasks, List<FileSystemNode> workingNodes, string[] args)
         {
             var path = GetValidPath(args.Length > 1 ? args[1] : "");
-            var existingNode = workingNodes.FirstOrDefault(x => x.FullPath == path && x.IsDirectory());
-            if (existingNode == null)
+            var existingNodes = workingNodes.Where(x => x.FullPath == path && x.IsDirectory());
+            if (!existingNodes.Any())
             {
                 throw new ArgumentException("Invalid command, the specified path is not a directory.");
             }
 
-            var children = existingNode.Children.ToArray();
+            var children = existingNodes.SelectMany(x => x.Children).OrderBy(x => x.Name);
+            var maxNameLength = children.Any() ? children.Max(x => x.Name.Length) : 0;
             foreach (var child in children)
             {
-                Logger.LogInformation(child.Name);
+                Logger.LogInformation(child.Name.PadRight(maxNameLength) + "\t" + (child.IsUserNode ? "UserNode" : "SystemNode"));
             }
         }
     }

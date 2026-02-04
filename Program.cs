@@ -14,7 +14,7 @@ internal class Program
     [DynamicDependency(DynamicallyAccessedMemberTypes.All, typeof(Program))]
     private static void Main(string[] args)
     {
-        Console.WriteLine("Blackberry Signed Image Patcher V0.0.12 BETA - By Pablo Ferreira");
+        Console.WriteLine("Blackberry Signed Image Patcher V0.0.16 BETA - By Pablo Ferreira");
         Console.WriteLine("Currently only edits the User Image (QNX6 FS) of the OS.");
         Console.WriteLine("This program is not responsible for any damage caused to your device, use at your own risk.");
         Console.WriteLine("");
