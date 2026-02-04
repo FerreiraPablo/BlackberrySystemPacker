@@ -55,7 +55,7 @@ namespace BlackberrySystemPacker.Helpers.EditingCommands
                 {
                     RelativeNodePath = $"var/pps/system/installer/upd/current/{fixedFileName}",
                     Type = LiveEditingTaskType.CreateFile,
-                    Data = Encoding.ASCII.GetBytes($"@{fixedFileName}\naction::install\npackage_location::{packageContentLocation}\nextras::")
+                    Data = Encoding.ASCII.GetBytes($"@{fixedFileName}\naction::install\npackage_location::/{packageContentLocation}\nextras::\n")
                 }
             };
 

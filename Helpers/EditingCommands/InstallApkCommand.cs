@@ -44,8 +44,8 @@ namespace BlackberrySystemPacker.Helpers.EditingCommands
             using var archive = new ZipArchive(fileStream, ZipArchiveMode.Read);
 
 
-            var packageIdentity = $"apk{new Random().Next(99999999)}";
-            var packageContentLocation = $"var/android/{packageIdentity}";
+            var fixedFileName = Path.GetFileNameWithoutExtension(originalFile).Replace(" ", "").Replace(".", "").ToLower();
+            var packageContentLocation = $"var/android/{fixedFileName}";
 
             var directoryTasks = new List<LiveEditingTask>();
             var fileTasks = new List<LiveEditingTask>();
@@ -56,11 +56,13 @@ namespace BlackberrySystemPacker.Helpers.EditingCommands
                 Type = LiveEditingTaskType.CreateDirectory,
             });
 
+
+            var installationCommand = $"@{fixedFileName}\naction::install_apk\npackage_location::/{packageContentLocation}\nextras::source::apk\n";
             fileTasks.Add(new LiveEditingTask()
             {
-                RelativeNodePath = $"var/pps/system/installer/upd/current/{packageIdentity}",
+                RelativeNodePath = $"var/pps/system/installer/upd/current/{fixedFileName}",
                 Type = LiveEditingTaskType.CreateFile,
-                Data = Encoding.ASCII.GetBytes($"@{packageIdentity}\naction::install_apk\npackage_location::{packageContentLocation}\nextras::source::apk")
+                Data = Encoding.ASCII.GetBytes(installationCommand)
             });
 
             foreach (var entry in archive.Entries)
@@ -71,7 +73,7 @@ namespace BlackberrySystemPacker.Helpers.EditingCommands
                     // Directory entry
                     directoryTasks.Add(new LiveEditingTask()
                     {
-                        RelativeNodePath = relativePath,
+                        RelativeNodePath = relativePath.TrimEnd('/'),
                         Type = LiveEditingTaskType.CreateDirectory,
                     });
                 }
