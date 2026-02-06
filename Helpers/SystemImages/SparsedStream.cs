@@ -1,9 +1,4 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.IO;
-
-namespace BlackberrySystemPacker.Helpers.SystemImages
+﻿namespace BlackberrySystemPacker.Helpers.SystemImages
 {
     public class SparsedStream : Stream
     {

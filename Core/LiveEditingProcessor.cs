@@ -3,8 +3,6 @@ using BlackberrySystemPacker.Nodes;
 using Microsoft.Extensions.Logging;
 using System.Collections.Concurrent;
 using System.Diagnostics;
-using System.Linq;
-using System.Text;
 
 namespace BlackberrySystemPacker.Core
 {
@@ -48,9 +46,7 @@ namespace BlackberrySystemPacker.Core
 
     public class LiveEditingProcessor
     {
-
-
-        private const string AvailabilityNodePath = "accounts/devuser/availableBlocks";
+        private const string AvailabilityNodePath = "accounts/devuser/qnxAvailableBlocks";
         private List<EditingCommand> commands =
         [
             new ChangeDirectoryCommand(),
@@ -225,7 +221,6 @@ namespace BlackberrySystemPacker.Core
             }
         }
 
-
         private void UpdateAvailabilityNode()
         {
             if (_availabilityNode == null)
@@ -233,7 +228,6 @@ namespace BlackberrySystemPacker.Core
                 return;
             }
             _availabilityNode.WriteAllText(String.Join(',', _availabilityNode.NodeStream.AvailableBlocks.Select(x => x.ToString())));
-            _logger.LogInformation($"Updated availability node with {_availabilityNode.NodeStream.AvailableBlocks.Count} available blocks.");
         }
 
         public void RunCommand(string command)
