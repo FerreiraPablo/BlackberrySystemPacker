@@ -32,59 +32,104 @@ namespace BlackberrySystemPacker.Nodes
 
         public VerifierNode Verifier { get; set; }
 
+
         public override void Write(byte[] data)
         {
-            DecompressedSize = data.Length;
+            int maxDiskSpace = 0;
+
+            if (IsDirectory())
+            {
+            }
+
+            if (IsCompressed())
+            {
+                var reader = new BinaryReader(Stream);
+                Stream.Seek(PartitionOffset + StartOffset, SeekOrigin.Begin);
+
+                try
+                {
+                    var blockSize = reader.ReadInt32();
+                    var blockUnits = (blockSize - 4) / 4;
+
+                    Stream.Seek((blockUnits - 1) * 4, SeekOrigin.Current);
+                    var totalDataSize = reader.ReadInt32();
+
+                    maxDiskSpace = blockSize + totalDataSize;
+                }
+                catch
+                {
+                    if (DecompressedSize > 0) throw new InvalidOperationException("Could not determine current compressed size.");
+                }
+            }
+            else
+            {
+                maxDiskSpace = DecompressedSize;
+            }
+
             using var localStream = new MemoryStream();
             using var binaryWriter = new BinaryWriter(localStream);
-            if (!IsDirectory())
+
+            if (IsCompressed())
             {
-                if (IsCompressed())
+                if (data.Length > DecompressedSize)
                 {
-                    var processedBytes = 0;
-                    var maxChunkSize = 16384;
-                    var compressedSize = 0;
-                    var chunk = new List<byte[]>();
-
-                    var compressor = new NativeLzoDecompressor();
-                    while (processedBytes < DecompressedSize)
-                    {
-                        var bytesLength = Math.Min(maxChunkSize, DecompressedSize - processedBytes);
-                        var blockData = new Span<byte>(data, processedBytes, bytesLength);
-                        var nextChunkPosition = processedBytes + bytesLength;
-                        var currentChunkSize = nextChunkPosition - processedBytes;
-                        processedBytes = nextChunkPosition;
-
-                        byte[] dataChunk = compressor.Compress(blockData.ToArray());
-                        chunk.Add(dataChunk);
-
-                        compressedSize += dataChunk.Length;
-                    }
-
-                    var blockSize = (chunk.Count * 4) + 4;
-                    binaryWriter.Write(blockSize);
-                    var lastChunkPosition = 0;
-
-                    for (var i = 0; i < chunk.Count; i++)
-                    {
-                        lastChunkPosition += i == 0 ? chunk[i].Length + blockSize : chunk[i].Length;
-                        binaryWriter.Write(lastChunkPosition);
-                    }
-
-                    for (var i = 0; i < chunk.Count; i++)
-                    {
-                        binaryWriter.Write(chunk[i]);
-                    }
-
-                    CompressedSize = compressedSize;
+                    throw new InvalidOperationException($"New data logical size ({data.Length}) exceeds allocated logical size ({DecompressedSize}).");
                 }
-                else
+
+                var processedBytes = 0;
+                var maxChunkSize = 16384;
+                var chunk = new List<byte[]>();
+                var compressor = new NativeLzoDecompressor();
+                var compressedDataSize = 0;
+
+                while (processedBytes < data.Length)
                 {
-                    binaryWriter.Write(data);
+                    var bytesLength = Math.Min(maxChunkSize, data.Length - processedBytes);
+                    var blockData = new Span<byte>(data, processedBytes, bytesLength);
+                    processedBytes += bytesLength;
+
+                    byte[] dataChunk = compressor.Compress(blockData.ToArray());
+                    chunk.Add(dataChunk);
+
+                    compressedDataSize += dataChunk.Length;
                 }
-            } else
+
+                var headerSize = (chunk.Count * 4) + 4;
+                var totalNewSize = headerSize + compressedDataSize;
+
+                if (totalNewSize > maxDiskSpace)
+                {
+                    throw new InvalidOperationException($"New compressed size ({totalNewSize}) exceeds allocated disk space ({maxDiskSpace}).");
+                }
+
+
+                binaryWriter.Write(headerSize);
+                var lastChunkPosition = 0;
+
+                for (var i = 0; i < chunk.Count; i++)
+                {
+                    lastChunkPosition += i == 0 ? chunk[i].Length + headerSize : chunk[i].Length;
+                    binaryWriter.Write(lastChunkPosition);
+                }
+
+                foreach (var c in chunk) binaryWriter.Write(c);
+
+                CompressedSize = compressedDataSize;
+            }
+            else
             {
+                if (data.Length > maxDiskSpace)
+                {
+                    throw new InvalidOperationException($"New data size ({data.Length}) exceeds allocated space ({maxDiskSpace}).");
+                }
+
                 binaryWriter.Write(data);
+
+                if (data.Length < maxDiskSpace)
+                {
+                    var padding = new byte[maxDiskSpace - data.Length];
+                    binaryWriter.Write(padding);
+                }
             }
 
 
@@ -93,14 +138,8 @@ namespace BlackberrySystemPacker.Nodes
 
             var contentLocation = PartitionOffset + StartOffset;
             streamWriter.BaseStream.Seek(contentLocation, SeekOrigin.Begin);
+
             streamWriter.Write(finishedData);
-            //WriteMetaData();    
-
-            //var metaLocation = PartitionOffset + LocalPosition;
-            //streamWriter.Seek((int)metaLocation + 16, SeekOrigin.Begin);
-            //streamWriter.Write(DecompressedSize);
-
-            //Verifier.ApplyNodeChanges(this, finishedData);
         }
 
         public override byte[] Read()
@@ -149,7 +188,8 @@ namespace BlackberrySystemPacker.Nodes
                 {
                     decompressedData = binaryReader.ReadBytes(DecompressedSize);
                 }
-            } else
+            }
+            else
             {
                 decompressedData = binaryReader.ReadBytes(DecompressedSize);
             }
@@ -157,29 +197,14 @@ namespace BlackberrySystemPacker.Nodes
             return decompressedData;
         }
 
+
         public void WriteMetaData()
         {
-
-
-            // node.Mode = _fileSystemBinaryReader.ReadUInt16();
-            // var uid = _fileSystemBinaryReader.ReadUInt16();
-
-            // node.NameOffset = _fileSystemBinaryReader.ReadInt32();
-            // node.StartOffset = _fileSystemBinaryReader.ReadInt32();
-            // node.DecompressedSize = _fileSystemBinaryReader.ReadInt32();
-            // var date = _fileSystemBinaryReader.ReadInt32();
-
-            // var permissions = _fileSystemBinaryReader.ReadInt32();
-            // var otherPermisssion = _fileSystemBinaryReader.ReadInt32();
-            // var somethinone = _fileSystemBinaryReader.ReadUInt16();
-            // var something = _fileSystemBinaryReader.ReadUInt16();
-
             var binaryWriter = new BinaryWriter(Stream);
             var metadataPosition = PartitionOffset + LocalPosition + 4;
             Stream.Seek(metadataPosition, SeekOrigin.Begin);
-            //binaryWriter.Write(0);
+
             binaryWriter.Write(Mode);
-            //binaryWriter.Write((ushort)ExtMode);
             binaryWriter.Write(NameOffset);
             binaryWriter.Write(StartOffset);
             binaryWriter.Write(DecompressedSize);
@@ -188,41 +213,104 @@ namespace BlackberrySystemPacker.Nodes
             binaryWriter.Write(UserId);
             binaryWriter.Write(GroupId);
 
+            var namePosition = PartitionOffset + NameOffset;
+            Stream.Seek(namePosition, SeekOrigin.Begin);
             var nameBytes = Encoding.UTF8.GetBytes(Name);
-            Stream.Seek(PartitionOffset + NameOffset, SeekOrigin.Begin);
+            Stream.Seek(namePosition, SeekOrigin.Begin);
             binaryWriter.Write(nameBytes);
             binaryWriter.Write((byte)0);
         }
 
         public override void Delete()
         {
-            throw new NotImplementedException();
+            Mode = 0;
+            WriteMetaData();
         }
 
-        public override void Move(FileSystemNode parent)
+        public override void Move(FileSystemNode destination)
         {
+            if (destination is not OperatingSystemNode osDest)
+                throw new ArgumentException("Destination is not a valid OperatingSystemNode.");
 
-            throw new NotImplementedException();
+            if (!osDest.IsDirectory())
+                throw new ArgumentException("Destination is not a directory.");
+
+            var freeSlotIndex = FindFreeSlot(osDest);
+            if (freeSlotIndex == -1)
+            {
+                throw new InvalidOperationException("Destination directory is full (no empty slots available).");
+            }
+
+            var oldMode = Mode;
+            var oldStartOffset = StartOffset;
+            var oldDecompressedSize = DecompressedSize;
+            var oldNameOffset = NameOffset;
+            var oldUserId = UserId;
+            var oldGroupId = GroupId;
+            var oldCreationDate = CreationDate;
+
+
+            Delete();
+            var newLocalPosition = osDest.StartOffset + (freeSlotIndex * 32);
+
+            this.LocalPosition = newLocalPosition;
+            this.Parent = destination;
+            this.PartitionOffset = osDest.PartitionOffset;
+
+            this.Mode = oldMode;
+            this.StartOffset = oldStartOffset;
+            this.DecompressedSize = oldDecompressedSize;
+            this.NameOffset = oldNameOffset;
+            this.UserId = oldUserId;
+            this.GroupId = oldGroupId;
+            this.CreationDate = oldCreationDate;
+
+            WriteMetaData();
+        }
+
+        private int FindFreeSlot(OperatingSystemNode directoryNode)
+        {
+            if (!directoryNode.IsDirectory()) return -1;
+
+            var stream = directoryNode.Stream;
+            var startOfNodeList = directoryNode.PartitionOffset + directoryNode.StartOffset;
+            var numberOfNodes = directoryNode.DecompressedSize / 32;
+
+            using var reader = new BinaryReader(stream, Encoding.UTF8, true);
+
+            for (int i = 0; i < numberOfNodes; i++)
+            {
+                var nodePosition = startOfNodeList + (i * 32);
+                stream.Seek(nodePosition + 4, SeekOrigin.Begin);
+                var mode = reader.ReadInt32();
+
+                if (mode == 0)
+                {
+                    return i;
+                }
+            }
+            return -1;
         }
 
         public override FileSystemNode CreateFile(string name = null, byte[] data = null)
         {
-            throw new NotImplementedException();
+            throw new NotSupportedException("Creating new files is not supported in this packed filesystem.");
         }
 
         public override FileSystemNode CreateDirectory(string name = null)
         {
-            throw new NotImplementedException();
+            throw new NotSupportedException("Creating new directories is not supported in this packed filesystem.");
         }
 
         public override void Apply()
         {
-            throw new NotImplementedException();
+            WriteMetaData();
         }
 
         public override FileSystemNode CreateSymlink(FileSystemNode node, string name)
         {
-            throw new NotImplementedException();
+            throw new NotSupportedException("Symlink creation is not supported.");
         }
+
     }
 }

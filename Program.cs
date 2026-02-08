@@ -14,10 +14,11 @@ internal class Program
     [DynamicDependency(DynamicallyAccessedMemberTypes.All, typeof(Program))]
     private static void Main(string[] args)
     {
-        Console.WriteLine("Blackberry Signed Image Patcher V0.0.16 BETA - By Pablo Ferreira");
+        Console.WriteLine("Blackberry Signed Image Patcher V0.0.17 BETA - By Pablo Ferreira");
         Console.WriteLine("Currently only edits the User Image (QNX6 FS) of the OS.");
         Console.WriteLine("This program is not responsible for any damage caused to your device, use at your own risk.");
         Console.WriteLine("");
+
         var options = GetOptions(args);
         var procedure = args.Length > 0 ? args[0].ToUpper() : null;
         if (procedure != null)
@@ -103,6 +104,12 @@ internal class Program
         var skipWorkspaceBuild = options.GetValueOrDefault("skipworkspace") ?? options.GetValueOrDefault("sw");
         var script = options.GetValueOrDefault("script") ?? options.GetValueOrDefault("s");
         var autoloaderOutputFile = options.GetValueOrDefault("autoloaderoutputfile") ?? options.GetValueOrDefault("aof");
+        var onlyCli = options.GetValueOrDefault("onlycli") ?? options.GetValueOrDefault("oc");
+        if(onlyCli != null)
+        {
+            skipWorkspaceBuild = "true";
+        }
+
 
         var patchingScript = PatchingScripts.ImageCleanupScript;
         if (script != null)
@@ -197,7 +204,7 @@ internal class Program
                 modifiedFile = Patch(patchingScript, signedFile, outputFile);
                 break;
             case "EDIT":
-                modifiedFile = Export(workspaceDir, skipWorkspaceBuild == null, signedFile, outputFile);
+                modifiedFile = Export(workspaceDir, skipWorkspaceBuild == null, signedFile, outputFile, onlyCli == null);
                 break;
             case "EXTRACT":
                 _ = Extract(workspaceDir, signedFile);
@@ -349,7 +356,7 @@ internal class Program
         return outputFile;
     }
 
-    public static string Export(string workspaceDir, bool createWorkspace, string originalFile, string outputFile = null)
+    public static string Export(string workspaceDir, bool createWorkspace, string originalFile, string outputFile = null, bool workspaceWatch = true)
     {
         var modifiedPackage = GetWorkStream(originalFile, outputFile);
         var stopWatch = new Stopwatch();
@@ -368,7 +375,7 @@ internal class Program
         {
             editingProcessor.Build();
         }
-        editingProcessor.Start().Wait();
+        editingProcessor.Start(workspaceWatch).Wait();
         modifiedPackage.Close();
         return outputFile;
     }

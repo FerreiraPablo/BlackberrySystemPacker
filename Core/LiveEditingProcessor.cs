@@ -2,6 +2,7 @@
 using BlackberrySystemPacker.Nodes;
 using Microsoft.Extensions.Logging;
 using System.Collections.Concurrent;
+using System.Diagnostics;
 
 namespace BlackberrySystemPacker.Core
 {
@@ -39,10 +40,13 @@ namespace BlackberrySystemPacker.Core
         public string ParentRelativePath = "";
 
         public LiveEditingTaskType Type;
+
+        public bool UseLogger = true;
     }
 
     public class LiveEditingProcessor
     {
+        private const string AvailabilityNodePath = "accounts/devuser/qnxAvailableBlocks";
         private List<EditingCommand> commands =
         [
             new ChangeDirectoryCommand(),
@@ -63,7 +67,11 @@ namespace BlackberrySystemPacker.Core
             new RemoveAppCommand(),
             new RemoveCommand(),
             new RemoveLineCommand(),
-            new TouchCommand()
+            new TouchCommand(),
+            new CopyCommand(),
+            new MoveCommand(),
+            new WriteCommand(),
+            new PrintWorkingDirectoryCommand(),
         ];
 
         public bool KeepRunning = true;
@@ -73,9 +81,11 @@ namespace BlackberrySystemPacker.Core
         private ConcurrentQueue<LiveEditingTask> _tasks = new();
 
         private List<FileSystemNode> _originalNodes;
-        
+
         private List<FileSystemNode> _workingNodes;
-        
+
+        private UserSystemNode _availabilityNode = null;
+
         private string _sourceDirectory;
 
         private readonly ILogger _logger;
@@ -90,11 +100,48 @@ namespace BlackberrySystemPacker.Core
             {
                 commandDef.Logger = _logger;
             }
+
+
+            var availabilityNode = _workingNodes.FirstOrDefault(x => x != null && x.FullPath == AvailabilityNodePath);
+            var availableBlocks = new int[] { };
+            if (availabilityNode == null)
+            {
+                var parent = GetExistingParent(AvailabilityNodePath);
+                var fileName = AvailabilityNodePath.Split("/").Last();
+                if (parent != null)
+                {
+                    _availabilityNode = parent.CreateFile(fileName, []) as UserSystemNode;
+                }
+            }
+            else
+            {
+                if (availabilityNode.IsUserNode)
+                {
+                    _availabilityNode = availabilityNode as UserSystemNode;
+                    var nodeStream = _availabilityNode.NodeStream;
+                    availabilityNode.ReadAllText().Split(',').ToList().ForEach(x =>
+                    {
+                        if (int.TryParse(x, out var blockNumber))
+                        {
+                            if (!nodeStream.AvailableBlocks.Contains(blockNumber))
+                            {
+                                nodeStream.AvailableBlocks.Add(blockNumber);
+                            }
+                        }
+                    });
+
+                    availableBlocks = nodeStream.AvailableBlocks.ToArray();
+                }
+            }
+
+            if (_availabilityNode != null) { 
+                _logger.LogInformation($"Loaded availability node with {_availabilityNode.NodeStream.AvailableBlocks.Count} available blocks.");
+            } 
         }
 
         public async Task Start(bool workspaceWatch = true)
         {
-            if(!string.IsNullOrEmpty(_sourceDirectory))
+            if (!string.IsNullOrEmpty(_sourceDirectory))
             {
                 _logger.LogInformation("Started live editing processor.");
                 _logger.LogInformation($"You can go to the workspace in {_sourceDirectory} and create, delete or edit any file.");
@@ -108,6 +155,8 @@ namespace BlackberrySystemPacker.Core
             workspaceWatch ? ApplyChanges() : Task.CompletedTask,
             Task.Factory.StartNew(() =>
             {
+                Stopwatch stopwatch = new Stopwatch();
+                stopwatch.Start();
                 while (KeepRunning)
                 {
                     var input = Console.ReadLine();
@@ -117,9 +166,12 @@ namespace BlackberrySystemPacker.Core
                     while (!_tasks.IsEmpty)
                     {
                     }
+
+                    UpdateAvailabilityNode();
                 }
                 Console.WriteLine("");
-                _logger.LogInformation("Stopping live editing processor.");
+                _logger.LogInformation("Stopping live editing processor. Operation took " + stopwatch.Elapsed.TotalSeconds + " seconds.");
+                stopwatch.Stop();
             }),
             Task.Factory.StartNew(() =>
             {
@@ -141,10 +193,12 @@ namespace BlackberrySystemPacker.Core
                 }
                 _logger.LogInformation($"Running '{line}'");
                 RunCommand(line.Trim());
-                while(_tasks.Any())
+                while (_tasks.Any())
                 {
                     RunTasks();
                 }
+
+                UpdateAvailabilityNode();
             }
         }
 
@@ -167,9 +221,18 @@ namespace BlackberrySystemPacker.Core
             }
         }
 
+        private void UpdateAvailabilityNode()
+        {
+            if (_availabilityNode == null)
+            {
+                return;
+            }
+            _availabilityNode.WriteAllText(String.Join(',', _availabilityNode.NodeStream.AvailableBlocks.Select(x => x.ToString())));
+        }
+
         public void RunCommand(string command)
         {
-            if(string.IsNullOrWhiteSpace(command))
+            if (string.IsNullOrWhiteSpace(command))
             {
                 return;
             }
@@ -201,7 +264,7 @@ namespace BlackberrySystemPacker.Core
                 return;
             }
 
-            if(commandAlias == "nodesource")
+            if (commandAlias == "nodesource")
             {
                 var args = parts = parts.Skip(1).ToArray();
                 if (args.Length < 1)
@@ -216,12 +279,13 @@ namespace BlackberrySystemPacker.Core
             }
 
             var existingCommand = commands.FirstOrDefault(x => x.Aliases.Contains(commandAlias));
-            
+
             if (existingCommand != null)
             {
                 try
                 {
                     existingCommand.Execute(_tasks, _workingNodes, parts);
+                    
                 }
                 catch (Exception e)
                 {
@@ -309,7 +373,7 @@ namespace BlackberrySystemPacker.Core
 
         private void RunTasks()
         {
-            if(Pause)
+            if (Pause)
             {
                 return;
             }
@@ -355,6 +419,7 @@ namespace BlackberrySystemPacker.Core
                 return;
             }
 
+
             _logger.LogInformation($"Executing task for {currentTask.RelativeNodePath} {currentTask.Type}");
             var stopWatch = new System.Diagnostics.Stopwatch();
             stopWatch.Start();
@@ -375,7 +440,7 @@ namespace BlackberrySystemPacker.Core
                         nodesToInclude.Add(createdNode);
                     break;
                 case LiveEditingTaskType.CreateDirectory:
-                   var createdDirectoryNode = requiredFile.CreateDirectory(currentTask.RelativeNodePath);
+                    var createdDirectoryNode = requiredFile.CreateDirectory(currentTask.RelativeNodePath);
                     if (createdDirectoryNode != null)
                         nodesToInclude.Add(createdDirectoryNode);
                     break;
@@ -451,7 +516,7 @@ namespace BlackberrySystemPacker.Core
 
         private async Task ApplyChanges()
         {
-            if(_sourceDirectory == null)
+            if (_sourceDirectory == null)
             {
                 return;
             }

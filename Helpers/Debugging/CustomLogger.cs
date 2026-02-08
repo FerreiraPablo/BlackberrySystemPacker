@@ -1,9 +1,4 @@
 ﻿using Microsoft.Extensions.Logging;
-using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
 
 namespace BlackberrySystemPacker.Helpers.Debugging
 {
@@ -51,7 +46,7 @@ namespace BlackberrySystemPacker.Helpers.Debugging
             };
             
             // Write just the log level with color
-            Console.Write($"{logLevel}: ");
+            Console.Write($"{logLevel.ToString().Substring(0,1).ToUpper()}: ");
             
             // Restore original color, then write the message
             Console.ForegroundColor = originalColor;

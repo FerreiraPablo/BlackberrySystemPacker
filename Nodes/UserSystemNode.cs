@@ -1,10 +1,6 @@
-using System.IO;
 using System.Text;
 using BlackberrySystemPacker.Helpers.Nodes;
 using BlackberrySystemPacker.Helpers.QNX6;
-using Newtonsoft.Json.Linq;
-using static System.Runtime.InteropServices.JavaScript.JSType;
-
 namespace BlackberrySystemPacker.Nodes
 {
     public class UserSystemNode : FileSystemNode
@@ -80,8 +76,33 @@ namespace BlackberrySystemPacker.Nodes
             var usableSectors = new List<KeyValuePair<int, int>>();
             var validSectors = NodeStream.GetValidSectors(Sectors, Levels);
             var existingSectorsLeft = validSectors.ToList();
-            var size = data.Length;
 
+            if (Levels > 0)
+            {
+                var sectorsToFree = new List<int>();
+                var currentLevelSectors = Sectors.Where(x => x > 0).ToList();
+                for (int i = 0; i < Levels; i++)
+                {
+                    sectorsToFree.AddRange(currentLevelSectors);
+                    if (i < Levels - 1)
+                    {
+                        var nextLevelSectors = new List<int>();
+                        foreach (var sector in currentLevelSectors)
+                        {
+                            var offset = NodeStream.GetSectorOffset(sector);
+                            Stream.Seek(offset, SeekOrigin.Begin);
+                            for (int z = 0; z < SectorSize / 4; z++)
+                            {
+                                var ptr = binaryReader.ReadInt32();
+                                if (ptr > 0) nextLevelSectors.Add(ptr);
+                            }
+                        }
+                        currentLevelSectors = nextLevelSectors;
+                    }
+                }
+                NodeStream.AvailableBlocks.AddRange(sectorsToFree);
+            }
+            var size = data.Length;
 
             do
             {
@@ -114,41 +135,6 @@ namespace BlackberrySystemPacker.Nodes
                 validSectors.Remove(lastSectorDefinition);
             }
 
-            
-            //if(Levels > 0)
-            //{
-            //    var currentWorkSectors = usableSectors.Select(x => x.Key).ToArray();
-            //    for (var i = 1; i <= Levels; i++)
-            //    {
-            //        var currentLevelBlocks = new List<int>();
-            //        var blocksRequired = (int)Math.Ceiling((double)currentWorkSectors.Length / 16);
-            //        var pendingToLocate = new Queue<int>(currentWorkSectors);
-            //        for (var j = 0; j < blocksRequired; j++)
-            //        {
-            //            var nonAllocatedBlock = NodeStream.GetUnallocatedBlock();
-            //            if (nonAllocatedBlock == -1)
-            //            {
-            //                throw new Exception("There are no free blocks for data storage");
-            //            }
-            //            NodeStream.AllocateBlock(nonAllocatedBlock);
-            //            currentLevelBlocks.Add(nonAllocatedBlock);
-
-            //            var offset = NodeStream.GetSectorOffset(nonAllocatedBlock);
-            //            Stream.Seek(offset, SeekOrigin.Begin);
-            //            for (var z = 0; z < 1024; z++)
-            //            {
-            //                var sectorToWrite = pendingToLocate.Any() ? pendingToLocate.Dequeue() : -1;
-            //                binaryWriter.Write(sectorToWrite);
-            //            }
-            //        }
-
-            //        Sectors = currentLevelBlocks.ToArray();
-            //    }
-            //} else
-            //{
-            //}
-
-
             foreach (var sectorDefinition in usableSectors)
             {
                 var sectorPosition = sectorDefinition.Key;
@@ -164,7 +150,7 @@ namespace BlackberrySystemPacker.Nodes
                 }
             }
 
-            double directBlockCount = (double)Size / SectorSize;
+            double directBlockCount = (double)data.Length / SectorSize;
             Levels = directBlockCount <= 16 ? 0 : (int)Math.Ceiling(Math.Log(directBlockCount / 16) / Math.Log(SectorSize / 4));
 
             if (Levels > 0)
@@ -393,6 +379,26 @@ namespace BlackberrySystemPacker.Nodes
             }
             var realParent = parent as UserSystemNode;
             realParent.IncludeMetadata(RemoveParentMetadata());
+            
+            // Update in-memory structure
+            Parent = parent;
+            if (parent.IsDirectory())
+            {
+               parent.Children = (parent.Children ?? Enumerable.Empty<FileSystemNode>()).Append(this).ToArray();
+            }
+            UpdatePathRecursive(this, parent.FullPath);
+        }
+
+        private void UpdatePathRecursive(FileSystemNode node, string parentPath)
+        {
+            node.Path = parentPath;
+            if (node.IsDirectory() && node.Children != null)
+            {
+                foreach (var child in node.Children)
+                {
+                    UpdatePathRecursive(child, node.FullPath);
+                }
+            }
         }
 
         protected void IncludeMetadata(byte[] metadata)

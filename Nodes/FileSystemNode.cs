@@ -1,5 +1,4 @@
 using BlackberrySystemPacker.Helpers.Nodes;
-using BlackberrySystemPacker.Helpers.RCFS;
 using System.Text;
 
 namespace BlackberrySystemPacker.Nodes
